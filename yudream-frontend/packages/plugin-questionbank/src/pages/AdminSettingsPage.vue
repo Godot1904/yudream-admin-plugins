@@ -190,7 +190,7 @@ function save() {
           </p>
         </div>
       </FaCard>
-      <FaCard title="QQ 群抽题" description="群内发送「抽题」或「抽题 <分组名>」发起限时抢答；客观题自动判分，简答题可用上方配置的 AI 模型判分">
+      <FaCard title="QQ 群抽题" description="群内发送 /抽题 或 /抽题 <分组名> 发起限时抢答；客观题自动判分，简答题可用上方配置的 AI 模型判分">
         <div class="qb-form">
           <div class="qb-form-row">
             <span class="qb-form-label">默认分组</span>
@@ -225,13 +225,13 @@ function save() {
                 <FaButton size="sm" variant="outline" @click="addQqGroup"><FaIcon name="i-ri:add-line" />添加分组</FaButton>
               </div>
               <p class="qb-muted text-sm">
-                分组 = 一个指令名字 + 抽题范围（分类/标签，可都留空表示全库）。群内发送「抽题 分组名」即按该范围抽一道题。
+                分组 = 一个指令名字 + 抽题范围（分类/标签，可都留空表示全库）。群内发送 /抽题 分组名 即按该范围抽一道题。
               </p>
             </div>
           </div>
         </div>
       </FaCard>
-      <FaCard title="群指令开放时间" description="限制群内「抽题」「抢答榜」的可用时段；不在时段内发送指令时，群内会收到「现在不在开放时间，开放时间为 …」">
+      <FaCard title="群指令开放时间" description="限制群内 /抽题、/抢答榜 的可用时段；不在时段内发送指令时，群内会收到「现在不在开放时间，开放时间为 …」">
         <div class="qb-form">
           <div class="qb-form-row">
             <span class="qb-form-label">限制调用时间</span>

@@ -103,7 +103,7 @@ public final class QqQuizService implements AutoCloseable {
         }
         List<Map<String, Object>> entries = quizScores.channelLeaderboard(event.connectionId(), event.channelId());
         if (entries.isEmpty()) {
-            reply(command, context, "本群还没有抢答成绩，发送「抽题」开始抢答吧！", DRAW_BUTTONS);
+            reply(command, context, "本群还没有抢答成绩，发送 /抽题 开始抢答吧！", DRAW_BUTTONS);
             return;
         }
         StringBuilder sb = new StringBuilder("🏆 本群抢答排行榜");
