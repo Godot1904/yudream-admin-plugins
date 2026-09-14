@@ -56,7 +56,7 @@ export function createYggcApi(sdk: YuDreamPluginSdk) {
     regenerateKeyPair: (usage: 'texture' | 'token' | 'union-oauth2') =>
       sdk.http.post<YggcKeyPairInfo>(`/admin/config/keypair/${usage}`),
     diagnoseUnion: () => sdk.http.post<YggcUnionDiagnosis>('/admin/config/union/diagnose'),
-    // ---- 管理端：MUA 联邦同步 ----
+    // ---- 管理端：MUA Union 同步 ----
     unionStatus: () => sdk.http.get<YggcUnionStatus>('/admin/union/status'),
     syncUnionPrivateKey: () =>
       sdk.http.post<YggcUnionPrivateKeySyncResult>('/admin/union/sync-privatekey'),

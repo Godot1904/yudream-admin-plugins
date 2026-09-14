@@ -69,7 +69,7 @@ onMounted(model.load)
 
 <template>
   <section class="yggc-home">
-    <FaPageHeader title="MUA 状态" description="Minecraft 高校联盟（MUA）主服务器联邦状态、私钥同步与皮肤站列表。">
+    <FaPageHeader title="MUA 状态" description="Minecraft 高校联盟（MUA）主服务器状态、私钥同步与皮肤站列表。">
       <FaButton variant="outline" :loading="model.loading" @click="model.load">
         <FaIcon name="i-ri:refresh-line" />
         刷新

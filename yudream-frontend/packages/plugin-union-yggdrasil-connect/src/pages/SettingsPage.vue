@@ -30,7 +30,7 @@ onMounted(model.load)
 
 <template>
   <section class="yggc-home">
-    <FaPageHeader title="Yggdrasil Connect 设置" description="令牌、OAuth 2.0 / OIDC、MUA 联邦与签名密钥配置。">
+    <FaPageHeader title="Yggdrasil Connect 设置" description="令牌、OAuth 2.0 / OIDC、MUA Union 与签名密钥配置。">
       <FaButton variant="outline" :loading="model.loading" @click="model.load">
         刷新
       </FaButton>

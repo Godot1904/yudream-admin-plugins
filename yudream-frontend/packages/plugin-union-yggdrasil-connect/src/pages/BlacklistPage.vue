@@ -108,13 +108,13 @@ onMounted(model.query)
             </label>
             <label>
               <span>原因</span>
-              <input v-model="model.create.reason" class="yggc-input" placeholder="拉黑原因（可选）">
+              <input v-model="model.create.reason" class="yggc-input" placeholder="拉黑原因（主服务器要求必填）">
             </label>
           </div>
           <div class="yggc-actions">
             <FaButton :loading="model.creating" @click="model.submitCreate">提交到主服务器</FaButton>
           </div>
-          <p class="yggc-help">上游按邮箱维度拉黑（对齐 PHP 成员插件契约），提交后自动刷新查询结果。</p>
+          <p class="yggc-help">上游按邮箱维度拉黑（对齐 PHP 成员插件契约），邮箱与原因都是必填项；提交后自动刷新查询结果。</p>
         </FaCard>
       </div>
 

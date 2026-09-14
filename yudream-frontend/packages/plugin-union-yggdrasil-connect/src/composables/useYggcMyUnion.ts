@@ -72,7 +72,7 @@ export function useYggcMyUnion(sdk: YuDreamPluginSdk) {
   function unbind(uuid: string) {
     confirm.confirm({
       title: '解除跨站绑定',
-      content: '解除后本站角色将从 MUA 联邦绑定中退出，其他站点的关联将失效。确认继续吗？',
+      content: '解除后本站角色将从 MUA Union 绑定中退出，其他站点的关联将失效。确认继续吗？',
       onConfirm: async () => {
         await api.unionUnbind(uuid)
         toast.success('已解除跨站绑定')

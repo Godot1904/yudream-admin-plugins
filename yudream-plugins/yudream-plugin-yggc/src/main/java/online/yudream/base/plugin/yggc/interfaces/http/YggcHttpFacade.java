@@ -29,6 +29,7 @@ import online.yudream.base.plugin.yggc.interfaces.request.TokenRequest;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -447,7 +448,8 @@ public class YggcHttpFacade {
     /** 上游黑名单接口要求 X-Union-Member-Key，未配置时直接给出可操作的错误提示。 */
     private PluginHttpResponse blacklistGuard() {
         if (!unionService.memberKeyConfigured()) {
-            return PluginHttpResponse.json(400, Map.of(
+            // 必须用 rawJson：包一层信封后宿主会把 message 塞进 data，前端只能读到「操作成功」，看不到这句提示。
+            return PluginHttpResponse.rawJson(400, Map.of(
                     "message", "未配置 MUA Member Key，无法代理黑名单接口；请先在「插件配置」中填写并保存 MUA Member Key"));
         }
         return null;
@@ -490,10 +492,90 @@ public class YggcHttpFacade {
         return proxyJson(result);
     }
 
+    /**
+     * 把上游结果透传给前端。
+     *
+     * <p>成功时必须走 {@code ok}（包一层宿主信封）：宿主前端只认 {@code code == 200}，直接把上游的
+     * Laravel 分页 JSON 原样返回（rawJson）会被当成失败并弹「请求失败」。
+     * <p>失败时反过来用 {@code rawJson}：4xx/5xx 走 axios 的错误拦截器，它只读顶层 {@code message}，
+     * 包一层信封会把真实原因盖成「操作成功」。
+     */
     private PluginHttpResponse proxyJson(YggcUnionClient.UnionResult result) {
-        int status = result.ok() ? 200 : (result.status() == 0 ? 502 : result.status());
-        return PluginHttpResponse.rawJson(status, result.body() == null || result.body().isBlank()
-                ? Map.of("status", status) : parseOrRaw(result.body()));
+        if (result.ok()) {
+            Object body = result.body() == null || result.body().isBlank()
+                    ? Map.of("status", 200) : parseOrRaw(result.body());
+            return PluginHttpResponse.ok(body);
+        }
+        return PluginHttpResponse.rawJson(upstreamStatus(result), Map.of("message", upstreamMessage(result)));
+    }
+
+    private static int upstreamStatus(YggcUnionClient.UnionResult result) {
+        return result.status() == 0 ? 502 : result.status();
+    }
+
+    /** 上游失败原因 → 中文提示；无法识别时保留原始文案，便于排查。 */
+    private static String upstreamMessage(YggcUnionClient.UnionResult result) {
+        if (result.status() == 0) {
+            // 客户端已经给出「无法连接 Union 主服务器：…」这类说明，这里原样使用，不再二次加前缀。
+            String reason = result.body() == null ? "" : result.body().trim();
+            return reason.isEmpty() ? "无法连接 MUA 主服务器：网络不可达" : reason;
+        }
+        Map<String, Object> json = result.json();
+        String message = json == null ? "" : String.valueOf(json.getOrDefault("message", "")).trim();
+        if (isMemberKeyFailure(result.status(), message)) {
+            return "MUA Member Key 无效或已过期，请在「插件配置」中更新后重试"
+                    + (message.isEmpty() ? "" : "（上游：" + message + "）");
+        }
+        if (result.status() == 422) {
+            String invalid = validationMessage(json);
+            return invalid.isEmpty() ? "主服务器校验未通过：" + fallbackMessage(result, message)
+                    : "主服务器校验未通过：" + invalid;
+        }
+        if (result.status() == 404) {
+            return "主服务器上没有这条黑名单记录（可能已被删除或已失效）";
+        }
+        return "MUA 主服务器返回 HTTP " + result.status() + "：" + fallbackMessage(result, message);
+    }
+
+    private static boolean isMemberKeyFailure(int status, String message) {
+        String text = message.toLowerCase(Locale.ROOT);
+        return status == 401 || status == 403
+                || text.contains("key_invalid") || text.contains("key_missing")
+                || text.contains("member_key") || text.contains("memberkey");
+    }
+
+    /** Laravel 422 的 {@code errors} 字段 → 一句话提示（每个字段取第一条）。 */
+    private static String validationMessage(Map<String, Object> json) {
+        Object errors = json == null ? null : json.get("errors");
+        if (!(errors instanceof Map<?, ?> map) || map.isEmpty()) {
+            return "";
+        }
+        List<String> messages = new ArrayList<>();
+        map.forEach((field, value) -> {
+            String text = "";
+            if (value instanceof List<?> rows && !rows.isEmpty()) {
+                text = String.valueOf(rows.get(0));
+            } else if (value != null) {
+                text = String.valueOf(value);
+            }
+            text = text.trim();
+            if (!text.isEmpty() && !messages.contains(text)) {
+                messages.add(text);
+            }
+        });
+        return String.join("；", messages);
+    }
+
+    /** 上游文案缺失或只是翻译键时，回落到原始响应片段。 */
+    private static String fallbackMessage(YggcUnionClient.UnionResult result, String message) {
+        if (!message.isEmpty() && !message.contains("::")) {
+            return message;
+        }
+        String body = result.body() == null ? "" : result.body().trim().replaceAll("\\s+", " ");
+        if (body.length() > 200) {
+            body = body.substring(0, 200) + "…";
+        }
+        return body.isEmpty() ? "无响应内容" : body;
     }
 
     private Object parseOrRaw(String body) {

@@ -103,7 +103,7 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
   const error = ref('')
   /** 上游契约（对齐 PHP 成员插件）：GET /blacklist/query?q=关键词&page=页码，page 必传。 */
   const form = reactive({ q: '', page: '1' })
-  /** 上游契约：POST /blacklist/restful 字段为 email + reason。 */
+  /** 上游契约：POST /blacklist/restful 字段为 email + reason，两个都是主服务器必填项。 */
   const create = reactive({ email: '', reason: '' })
 
   async function query() {
@@ -117,7 +117,8 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
       result.value = await api.blacklistQuery(params)
     }
     catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = messageOf(e, '查询黑名单失败')
+      toast.error(error.value)
       result.value = null
     }
     finally {
@@ -132,16 +133,20 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
       if (!create.email.trim()) {
         throw new Error('请填写要拉黑的邮箱地址')
       }
-      const payload: Record<string, unknown> = { email: create.email.trim() }
-      if (create.reason) {
-        payload.reason = create.reason
+      // 主服务器对 reason 也做必填校验（缺失会返回 422），前端先拦一道，避免提交后才报错。
+      if (!create.reason.trim()) {
+        throw new Error('请填写拉黑原因，主服务器要求必填')
       }
+      const payload: Record<string, unknown> = { email: create.email.trim(), reason: create.reason.trim() }
       result.value = await api.blacklistCreate(payload)
       toast.success('已提交黑名单记录')
+      create.email = ''
+      create.reason = ''
       await query()
     }
     catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : String(e)
+      error.value = messageOf(e, '提交黑名单记录失败')
+      toast.error(error.value)
     }
     finally {
       creating.value = false
@@ -153,9 +158,14 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
       title: '使黑名单记录失效',
       content: `确认使黑名单记录 ${id} 失效吗？该记录将不再拦截角色登录。`,
       onConfirm: async () => {
-        await api.blacklistInvalidate(id)
-        toast.success('记录已失效')
-        await query()
+        try {
+          await api.blacklistInvalidate(id)
+          toast.success('记录已失效')
+          await query()
+        }
+        catch (e: unknown) {
+          reportFailure(e, '使记录失效失败')
+        }
       },
     })
   }
@@ -165,11 +175,27 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
       title: '删除黑名单记录',
       content: `确认删除黑名单记录 ${id} 吗？该操作不可恢复。`,
       onConfirm: async () => {
-        await api.blacklistDelete(id)
-        toast.success('记录已删除')
-        await query()
+        try {
+          await api.blacklistDelete(id)
+          toast.success('记录已删除')
+          await query()
+        }
+        catch (e: unknown) {
+          reportFailure(e, '删除记录失败')
+        }
       },
     })
+  }
+
+  /** 失效 / 删除失败时既要提示，也要把原因留在页面上，避免「点了没反应」。 */
+  function reportFailure(e: unknown, fallback: string) {
+    error.value = messageOf(e, fallback)
+    toast.error(error.value)
+  }
+
+  function messageOf(e: unknown, fallback: string) {
+    const text = e instanceof Error ? e.message : String(e ?? '')
+    return text.trim() || fallback
   }
 
   return reactive({

@@ -151,7 +151,7 @@ onMounted(model.load)
 
     <FaPageMain>
       <p class="yggc-help">
-        安全等级 SL3 表示本站满足 MUA 联邦全部安全要求（私钥由主服务器分发、成员回调带主机签名校验）。
+        安全等级 SL3 表示本站满足 MUA Union 全部安全要求（私钥由主服务器分发、成员回调带主机签名校验）。
         绑定后角色 UUID 会同步到所有用户中心；未使用 MUA 认证的服务器中与旧 UUID 关联的玩家数据可能失效。
       </p>
 

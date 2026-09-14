@@ -1,3 +1,3 @@
 {
-  "releaseNotes": "1.0.0：首个版本。实现 Yggdrasil API（authserver/sessionserver/profiles/材质）与 Yggdrasil Connect 协议（OAuth 2.0 授权码 + PKCE、设备授权、刷新令牌、ID Token RS256、UserInfo、发现文档与 JWKS），内置 Janus 的授权服务端能力，并提供 OAuth 应用、令牌与个人授权管理界面。"
+  "releaseNotes": "1.0.1：\n- 修复：联合黑名单（代理 MUA 主服务器）请求失败时只显示一句无意义的错误。现在会明确区分「未配置 / Member Key 无效或已过期」「主服务器校验未通过（含哪个字段不合法）」「主服务器不可达」等情况，并给出下一步操作提示。\n- 修复：新增黑名单记录时「原因」被当成可选项，而主服务器要求必填，导致提交后才报 422；现在邮箱与原因都在提交前校验。\n- 修复：使失效 / 删除黑名单记录失败时没有任何反馈（点了没反应），现在会提示失败原因并保留在页面上。\n- 文案：「MUA 联邦」统一改为「MUA Union」。\n\n1.0.0：首个版本。实现 Yggdrasil API（authserver/sessionserver/profiles/材质）与 Yggdrasil Connect 协议（OAuth 2.0 授权码 + PKCE、设备授权、刷新令牌、ID Token RS256、UserInfo、发现文档与 JWKS），内置 Janus 的授权服务端能力，并提供 OAuth 应用、令牌与个人授权管理界面。"
 }

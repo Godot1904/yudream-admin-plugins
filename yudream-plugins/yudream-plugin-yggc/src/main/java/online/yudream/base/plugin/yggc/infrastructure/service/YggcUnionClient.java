@@ -80,12 +80,18 @@ public class YggcUnionClient {
                     System.currentTimeMillis() - startedAt);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return new UnionResult(0, "请求被中断：" + e.getMessage(), null,
+            return new UnionResult(0, "请求被中断：" + describe(e), null,
                     System.currentTimeMillis() - startedAt);
         } catch (Exception e) {
-            return new UnionResult(0, "无法连接 Union 主服务器：" + e.getMessage(), null,
+            return new UnionResult(0, "无法连接 Union 主服务器：" + describe(e), null,
                     System.currentTimeMillis() - startedAt);
         }
+    }
+
+    /** 异常信息可能为空（如 DNS 解析失败），此时回落到异常类型名，避免提示里出现 null。 */
+    private static String describe(Exception e) {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
     }
 
     // ---- 连通性诊断（设置页按钮）----
