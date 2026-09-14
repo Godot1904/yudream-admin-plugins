@@ -4,9 +4,13 @@
 # every entry must be a root-reactor module. Local and branch builds ignore this
 # file and always build the full reactor.
 #
-# 本次发布只包含与 fork 基线（minecraft-server 1.5.1 / minecraft-activity-proof 2.4.1 /
-# project-progress 1.2.2）相比真正改动的三个插件：群组服子服维度（解析、拆分统计、
-# 事件流水、按子服 API）及其两个消费方。未列入的插件不打包、不发布、不跟随升版。
+# 本次发布包含与 fork 基线（minecraft-server 1.5.1 / minecraft-activity-proof 2.4.1 /
+# project-progress 1.2.2 / questionbank 1.3.0）相比真正改动的四个插件：
+#   - minecraft-server 1.6.0：群组服子服维度（解析、拆分统计、事件流水、按子服 API）
+#   - minecraft-activity-proof 2.5.0 / project-progress 1.3.0：两个消费方的按子服核验与打卡
+#   - questionbank 1.4.0：群指令开放时间限制
+# 未列入的插件不打包、不发布、不跟随升版。
 yudream-plugin-minecraft-server
 yudream-plugin-minecraft-activity-proof
 yudream-plugin-project-progress
+yudream-plugin-questionbank
