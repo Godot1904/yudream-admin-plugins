@@ -34,6 +34,7 @@
         <module>yudream-plugins/yudream-plugin-minecraft-activity-proof</module>
         <module>yudream-plugins/yudream-plugin-minecraft-server</module>
         <module>yudream-plugins/yudream-plugin-project-progress</module>
+        <module>yudream-plugins/yudream-plugin-points-mall</module>
         <module>yudream-plugins/yudream-plugin-yudream-skin</module>
         <module>yudream-plugins/yudream-plugin-student-info</module>
         <module>yudream-plugins/yudream-plugin-wallet</module>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>online.yudream.plugins</groupId>
+        <artifactId>yudream-admin-plugins</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>yudream-plugin-points-mall</artifactId>
+    <version>1.1.0</version>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../../yudream-frontend/packages/plugin-points-mall/dist</directory>
+                <targetPath>META-INF/yudream-plugin/frontend/points-mall</targetPath>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>online.yudream.base</groupId>
+            <artifactId>yudream-plugin-spi</artifactId>
+        </dependency>
+        <!-- 积分商城用钱包里的积分结算：扣减、退款与资产列表都走 provider 的公开 API（provided 编译，
+             运行时由运行时把 provider 的类暴露给本插件，运行更早版本的钱包插件时按依赖校验拒绝启用）。 -->
+        <dependency>
+            <groupId>online.yudream.plugins</groupId>
+            <artifactId>yudream-plugin-wallet</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
