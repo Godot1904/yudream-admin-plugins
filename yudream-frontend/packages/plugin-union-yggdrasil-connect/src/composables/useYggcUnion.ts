@@ -1,7 +1,7 @@
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { YggcUnionBlacklistResult, YggcUnionServer, YggcUnionStatus, YggcUnionSyncResult } from '../types'
+import type { YggcUnionServer, YggcUnionStatus, YggcUnionSyncResult } from '../types'
 import { useFaModal, useFaToast } from '@yudream/components'
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { createYggcApi } from '../api/yggc-api'
 
 /** 皮肤站展示名称（原插件从 {bs_root}/api/yggdrasil 的 meta.serverName 拉取）。 */
@@ -99,27 +99,61 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
   const confirm = useFaModal()
   const querying = ref(false)
   const creating = ref(false)
-  const result = ref<YggcUnionBlacklistResult | null>(null)
   const error = ref('')
-  /** 上游契约（对齐 PHP 成员插件）：GET /blacklist/query?q=关键词&page=页码，page 必传。 */
-  const form = reactive({ q: '', page: '1' })
-  /** 上游契约：POST /blacklist/restful 字段为 email + reason，两个都是主服务器必填项。 */
+  /** 搜索关键词（q），按邮箱 / 角色名关键词过滤。 */
+  const form = reactive({ q: '' })
+  /** 新增表单：email + reason 都是主服务器必填项。 */
   const create = reactive({ email: '', reason: '' })
+  /** 全量拉取回来的所有记录（上游固定每页 15 条且忽略 per_page，这里循环拉完再本地分页）。 */
+  const records = ref<Record<string, unknown>[]>([])
+  const pager = reactive({ page: 1, size: 15, total: 0 })
 
+  const pagedRecords = computed(() => {
+    const start = (pager.page - 1) * pager.size
+    return records.value.slice(start, start + pager.size)
+  })
+
+  watch(() => pager.size, () => {
+    pager.page = 1
+  })
+  watch(() => pager.total, () => {
+    const maxPage = Math.max(1, Math.ceil(pager.total / Math.max(1, pager.size)))
+    if (pager.page > maxPage) {
+      pager.page = maxPage
+    }
+  })
+
+  /** 全量拉取：循环拉完上游所有页，合并后交给本地分页。 */
   async function query() {
     querying.value = true
     error.value = ''
     try {
-      const params: Record<string, string> = { page: form.page || '1' }
-      if (form.q) {
-        params.q = form.q
-      }
-      result.value = await api.blacklistQuery(params)
+      const collected: Record<string, unknown>[] = []
+      let page = 1
+      let lastPage = 1
+      do {
+        const params: Record<string, string> = { page: String(page) }
+        if (form.q) {
+          params.q = form.q
+        }
+        const res = await api.blacklistQuery(params)
+        const rows = extractRecords(res)
+        if (rows.length === 0 && page > 1) {
+          break
+        }
+        collected.push(...rows)
+        lastPage = lastPageOf(res)
+        page += 1
+      } while (page <= lastPage)
+      records.value = collected
+      pager.total = collected.length
+      pager.page = 1
     }
     catch (e: unknown) {
       error.value = messageOf(e, '查询黑名单失败')
       toast.error(error.value)
-      result.value = null
+      records.value = []
+      pager.total = 0
     }
     finally {
       querying.value = false
@@ -138,7 +172,7 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
         throw new Error('请填写拉黑原因，主服务器要求必填')
       }
       const payload: Record<string, unknown> = { email: create.email.trim(), reason: create.reason.trim() }
-      result.value = await api.blacklistCreate(payload)
+      await api.blacklistCreate(payload)
       toast.success('已提交黑名单记录')
       create.email = ''
       create.reason = ''
@@ -199,7 +233,28 @@ export function useYggcBlacklist(sdk: YuDreamPluginSdk) {
   }
 
   return reactive({
-    querying, creating, result, error, form, create,
+    querying, creating, error, form, create, records, pager, pagedRecords,
     query, submitCreate, invalidate, remove,
   })
+}
+
+/** 从上游 Laravel 分页响应里取记录数组。 */
+function extractRecords(result: Record<string, unknown>): Record<string, unknown>[] {
+  if (!result) {
+    return []
+  }
+  for (const key of ['data', 'records', 'list', 'blacklist', 'result']) {
+    const value = result[key]
+    if (Array.isArray(value)) {
+      return value as Record<string, unknown>[]
+    }
+  }
+  return []
+}
+
+/** 上游 last_page（数字或字符串）；缺失时视为 1，避免循环失控。 */
+function lastPageOf(result: Record<string, unknown>): number {
+  const raw = result?.last_page ?? result?.lastPage
+  const value = Number(raw)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1
 }

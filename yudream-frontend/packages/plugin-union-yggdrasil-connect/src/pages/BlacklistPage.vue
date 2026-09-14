@@ -2,7 +2,7 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { TableColumn } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import { FaButton, FaCard, FaPageHeader, FaPageMain, FaResponsiveTable, FaTag } from '@yudream/components'
+import { FaButton, FaCard, FaPageHeader, FaPageMain, FaPagination, FaResponsiveTable, FaTag } from '@yudream/components'
 import { computed, onMounted } from 'vue'
 import { useYggcBlacklist } from '../composables/useYggcUnion'
 
@@ -14,21 +14,6 @@ const props = defineProps<{
 void props.route
 
 const model = useYggcBlacklist(props.sdk)
-
-/** 从上游响应（Laravel 分页结构）中提取记录列表。 */
-function records(): Record<string, unknown>[] {
-  const result = model.result
-  if (!result) {
-    return []
-  }
-  for (const key of ['data', 'records', 'list', 'blacklist', 'result']) {
-    const value = result[key]
-    if (Array.isArray(value)) {
-      return value as Record<string, unknown>[]
-    }
-  }
-  return []
-}
 
 function text(record: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -51,7 +36,7 @@ interface BlacklistRow {
   validUntil: string
 }
 
-const tableRows = computed<BlacklistRow[]>(() => records().map((record) => {
+const tableRows = computed<BlacklistRow[]>(() => model.pagedRecords.map((record) => {
   const id = text(record, 'id', 'ID')
   return {
     key: id !== '-' ? id : `${record.email ?? ''}-${Math.random()}`,
@@ -83,21 +68,17 @@ onMounted(model.query)
 
     <FaPageMain>
       <div class="yggc-settings-grid">
-        <FaCard title="查询黑名单" description="代理 MUA 主服务器 /blacklist/query" content-class="yggc-card-content">
-          <div class="yggc-form-grid two">
+        <FaCard title="查询黑名单" description="全量拉取 MUA 主服务器 /blacklist/query" content-class="yggc-card-content">
+          <div class="yggc-form-grid one">
             <label>
               <span>关键词</span>
-              <input v-model="model.form.q" class="yggc-input" placeholder="按邮箱 / 角色名关键词查询">
-            </label>
-            <label>
-              <span>页码</span>
-              <input v-model="model.form.page" class="yggc-input" placeholder="页码，默认 1">
+              <input v-model="model.form.q" class="yggc-input" placeholder="按邮箱 / 角色名关键词查询（留空拉取全部）">
             </label>
           </div>
           <div class="yggc-actions">
             <FaButton :loading="model.querying" @click="model.query">查询</FaButton>
           </div>
-          <p class="yggc-help">参数原样透传至 MUA 主服务器（q 为关键词、page 为页码），以主服务器接口为准。</p>
+          <p class="yggc-help">主服务器固定每页 15 条且忽略 per_page，这里会循环拉完所有页再在下方本地分页；关键词会透传给主服务器过滤。</p>
         </FaCard>
 
         <FaCard title="新增黑名单记录" description="POST /blacklist/restful" content-class="yggc-card-content">
@@ -134,9 +115,9 @@ onMounted(model.query)
           <div class="yggc-table-toolbar">
             <div>
               <strong>查询结果</strong>
-              <span>MUA 主服务器返回的黑名单记录。</span>
+              <span>已全量拉取 MUA 主服务器黑名单记录。</span>
             </div>
-            <FaTag variant="secondary">{{ tableRows.length }} 条记录</FaTag>
+            <FaTag variant="secondary">{{ model.pager.total }} 条记录</FaTag>
           </div>
         </template>
         <template #cell-email="{ row }">
@@ -179,12 +160,18 @@ onMounted(model.query)
           </FaCard>
         </template>
       </FaResponsiveTable>
-      <FaCard v-else-if="model.result" title="查询结果" description="MUA 主服务器原始响应">
-        <pre class="yggc-diagnosis-body">{{ JSON.stringify(model.result, null, 2) }}</pre>
-      </FaCard>
       <FaCard v-else title="查询结果" description="MUA 主服务器返回的黑名单记录。">
         <p class="yggc-help">暂无数据，先执行一次查询。</p>
       </FaCard>
+
+      <FaPagination
+        v-if="model.pager.total > 0"
+        v-model:page="model.pager.page"
+        v-model:size="model.pager.size"
+        :total="model.pager.total"
+        :sizes="[15, 30, 50, 100]"
+        class="mt-3"
+      />
     </FaPageMain>
   </section>
 </template>
