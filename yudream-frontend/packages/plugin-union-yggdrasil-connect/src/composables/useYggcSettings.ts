@@ -1,4 +1,4 @@
-import type { YggcKeyPairInfo, YggcSettings, YggcUnionDiagnosis, YggcUnionLocalState, YggcUnionPrivateKeySyncResult } from '../types'
+import type { YggcKeyPairInfo, YggcSettings, YggcUnionDiagnosis, YggcUnionLocalState, YggcUnionPrivateKeySyncResult, YggcUnionProfileSyncState } from '../types'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import { useFaModal, useFaToast } from '@yudream/components'
 import { reactive, ref } from 'vue'
@@ -23,6 +23,9 @@ function defaultSettings(): YggcSettings {
     unionMemberKey: '',
     unionEnableUpdate: true,
     unionEnableOauth2: false,
+    unionSyncEnabled: true,
+    unionSyncIntervalMinutes: 10,
+    unionSyncOnLogin: true,
     oauthAccessTtl: 604800,
     oauthRefreshTtl: 2592000,
     oauthDeviceTtl: 600,
@@ -41,13 +44,15 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
   const diagnosis = ref<YggcUnionDiagnosis | null>(null)
   const keyPairs = ref<Partial<Record<'texture' | 'token' | 'union-oauth2', YggcKeyPairInfo>>>({})
   const unionState = ref<YggcUnionLocalState | null>(null)
+  const profileSyncState = ref<YggcUnionProfileSyncState | null>(null)
   const keySyncResult = ref<YggcUnionPrivateKeySyncResult | null>(null)
   const form = reactive<YggcSettings>(defaultSettings())
 
   function assign(settings: YggcSettings) {
-    const { keyPairs: ignored, union: ignoredUnion, ...rest } = settings
+    const { keyPairs: ignored, union: ignoredUnion, profileSync: ignoredSync, ...rest } = settings
     void ignored
     void ignoredUnion
+    void ignoredSync
     Object.assign(form, defaultSettings(), rest)
     if (settings.keyPairs) {
       keyPairs.value = settings.keyPairs
@@ -55,11 +60,17 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
     if (settings.union) {
       unionState.value = settings.union
     }
+    if (settings.profileSync) {
+      profileSyncState.value = settings.profileSync
+    }
   }
 
+  /** 只回传配置项本身：keyPairs / union / profileSync 都是只读状态，不参与保存。 */
   function payload(): Record<string, unknown> {
-    const { keyPairs: ignored, ...rest } = form
+    const { keyPairs: ignored, union: ignoredUnion, profileSync: ignoredSync, ...rest } = form
     void ignored
+    void ignoredUnion
+    void ignoredSync
     return { ...rest }
   }
 
@@ -136,7 +147,7 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
   }
 
   return reactive({
-    loading, saving, diagnosing, syncingKey, diagnosis, keyPairs, unionState, keySyncResult, form,
+    loading, saving, diagnosing, syncingKey, diagnosis, keyPairs, unionState, keySyncResult, profileSyncState, form,
     load, save, reset, regenerateKeyPair, syncUnionPrivateKey, diagnoseUnion,
   })
 }

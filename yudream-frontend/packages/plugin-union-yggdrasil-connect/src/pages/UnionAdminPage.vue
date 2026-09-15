@@ -77,6 +77,7 @@ onMounted(model.load)
       <FaButton :loading="model.syncingKey" @click="model.syncPrivateKey">从上游同步签名私钥</FaButton>
       <FaButton variant="outline" :loading="model.syncingList" @click="model.syncServerList">同步皮肤站列表</FaButton>
       <FaButton variant="outline" :loading="model.syncingProfiles" @click="model.syncProfiles">全量同步角色</FaButton>
+      <FaButton variant="outline" :loading="model.reconciling" @click="model.reconcileProfiles">立即对账角色</FaButton>
     </FaPageHeader>
 
     <FaPageMain>
@@ -186,12 +187,59 @@ onMounted(model.load)
       </div>
 
       <div class="yggc-union-section-grid">
+        <FaCard v-if="model.status?.profileSync" title="角色同步" description="本站角色 → MUA 主服务器" content-class="yggc-card-content">
+          <div class="yggc-status-line">
+            <span>已推送角色</span>
+            <strong>{{ model.status.profileSync.pushedCount ?? 0 }} 个</strong>
+          </div>
+          <div class="yggc-status-line">
+            <span>定时对账</span>
+            <FaTag :variant="model.status.profileSync.enabled ? 'default' : 'secondary'">
+              {{ model.status.profileSync.enabled ? `每 ${model.status.profileSync.intervalMinutes} 分钟` : '已关闭' }}
+            </FaTag>
+          </div>
+          <div class="yggc-status-line">
+            <span>登录时补推</span>
+            <FaTag :variant="model.status.profileSync.onLoginPush ? 'default' : 'secondary'">
+              {{ model.status.profileSync.onLoginPush ? '已开启' : '已关闭' }}
+            </FaTag>
+          </div>
+          <div class="yggc-status-line">
+            <span>上次同步</span>
+            <strong>{{ formatTime(model.status.profileSync.syncedAt) }}</strong>
+          </div>
+          <div v-if="model.status.profileSync.lastResult" class="yggc-status-line">
+            <span>上次结果</span>
+            <strong>
+              新增 {{ model.status.profileSync.lastResult.added ?? 0 }} ·
+              改名 {{ model.status.profileSync.lastResult.renamed ?? 0 }} ·
+              删除 {{ model.status.profileSync.lastResult.removed ?? 0 }} ·
+              失败 {{ model.status.profileSync.lastResult.failed ?? 0 }}
+            </strong>
+          </div>
+          <p class="yggc-help">
+            角色在皮肤站创建，插件收不到「创建」事件：开启「玩家登录时补推」后，玩家首次用启动器登录或进入服务器时会立刻补推他的新角色；
+            定时对账作为兜底，只推送与上次成功推送有差异的条目（缺失、改名、删除）。
+            两者都需要在「插件配置」里填好 MUA API Root 与 Member Key。
+          </p>
+          <p v-if="!model.status.profileSync.ready" class="yggc-help">当前未配置 Member Key，自动同步不会执行。</p>
+          <p v-if="model.status.profileSync.lastError" class="yggc-help yggc-help--danger">
+            最近失败：{{ model.status.profileSync.lastError }}
+          </p>
+          <div v-if="model.lastReconcileResult" class="yggc-status-line">
+            <span>本次对账</span>
+            <strong>{{ model.lastReconcileResult.message || '-' }}</strong>
+          </div>
+        </FaCard>
+
         <FaCard v-if="model.lastSyncResult" title="最近一次全量同步" description="POST /sync" content-class="yggc-card-content">
           <div class="yggc-status-line"><span>推送角色数</span><strong>{{ model.lastSyncResult.profileCount ?? '-' }}</strong></div>
           <p class="yggc-help">{{ model.lastSyncResult.message }}</p>
           <pre class="yggc-diagnosis-body">{{ JSON.stringify(model.lastSyncResult, null, 2) }}</pre>
         </FaCard>
+      </div>
 
+      <div class="yggc-union-section-grid">
         <FaCard title="安全等级" description="MUA 主服务器对本站后端的评级">
           <p class="yggc-help">
             安全等级由主服务器综合评估：SL3 = 站点私钥安全存储且通信全链路校验；SL1 = 存在安全短板；SL0 = 不安全。

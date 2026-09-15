@@ -10,11 +10,13 @@ import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.core.YuDreamPlugin;
 import online.yudream.base.plugin.yggc.application.service.YggcAppService;
 import online.yudream.base.plugin.yggc.application.service.YggcOAuthService;
+import online.yudream.base.plugin.yggc.application.service.YggcProfileSyncService;
 import online.yudream.base.plugin.yggc.application.service.YggcSettingsService;
 import online.yudream.base.plugin.yggc.application.service.YggcUnionService;
 import online.yudream.base.plugin.yggc.infrastructure.repository.YggcRepository;
 import online.yudream.base.plugin.yggc.infrastructure.service.YggcCryptoService;
 import online.yudream.base.plugin.yggc.infrastructure.service.YggcUnionClient;
+import online.yudream.base.plugin.yggc.infrastructure.service.YggcUnionProfileSyncScheduler;
 import online.yudream.base.plugin.yggc.infrastructure.support.YggcUnionHostVerifier;
 import online.yudream.base.plugin.yggc.interfaces.controller.YggcAdminController;
 import online.yudream.base.plugin.yggc.interfaces.controller.YggcOAuthController;
@@ -26,7 +28,7 @@ import online.yudream.base.plugin.yggc.interfaces.http.YggcHttpFacade;
 @PluginSpec(
         code = YggcPlugin.CODE,
         name = "Union Yggdrasil Connect",
-        version = "1.0.0",
+        version = "1.1.0",
         description = "传统 Yggdrasil 协议 + Yggdrasil Connect（OAuth 2.0 / OIDC，Janus 能力内置）：授权码 + PKCE、设备授权、刷新令牌旋转、RS256 ID Token。",
         dependencies = {"yudream-skin"}
 )
@@ -169,14 +171,22 @@ public class YggcPlugin implements YuDreamPlugin {
         YggcRepository repository = new YggcRepository(context.documents());
         YggcCryptoService cryptoService = new YggcCryptoService(repository);
         YggcSettingsService settingsService = new YggcSettingsService(repository);
-        YggcAppService appService = new YggcAppService(context, repository, cryptoService, settingsService);
-        YggcOAuthService oauthService = new YggcOAuthService(context, repository, cryptoService, appService, settingsService);
         YggcUnionClient unionClient = new YggcUnionClient();
+        // 角色同步：定时对账 + 玩家登录时定向补推；关闭插件时线程必须一起释放。
+        YggcProfileSyncService profileSyncService = new YggcProfileSyncService(
+                context, repository, settingsService, unionClient);
+        YggcUnionProfileSyncScheduler profileSyncScheduler = new YggcUnionProfileSyncScheduler(
+                settingsService, profileSyncService);
+        context.onDispose(profileSyncScheduler);
+        profileSyncScheduler.start();
+        YggcAppService appService = new YggcAppService(context, repository, cryptoService, settingsService,
+                profileSyncScheduler);
+        YggcOAuthService oauthService = new YggcOAuthService(context, repository, cryptoService, appService, settingsService);
         YggcUnionService unionService = new YggcUnionService(context, repository, settingsService,
                 cryptoService, unionClient);
         YggcUnionHostVerifier unionHostVerifier = new YggcUnionHostVerifier(unionClient, cryptoService);
         YggcHttpFacade http = new YggcHttpFacade(appService, oauthService, context.framework(),
-                settingsService, unionClient, cryptoService, unionService, unionHostVerifier);
+                settingsService, unionClient, cryptoService, unionService, unionHostVerifier, profileSyncService);
         context.registerHttpController(new YggcProtocolController(http));
         context.registerHttpController(new YggcOAuthController(http));
         context.registerHttpController(new YggcAdminController(http));

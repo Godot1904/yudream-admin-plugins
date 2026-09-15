@@ -174,6 +174,34 @@ onMounted(model.load)
             <FaSwitch v-model="model.form.unionEnableOauth2" />
             <p class="yggc-help">对应 union_enable_oauth2。开启后 MUA 主服务器可通过 OAuth2 流程使用本站账号登录（暴露 /union/member/oauth2 公钥与 grant 端点）。</p>
           </label>
+          <label>
+            <span>定期同步角色到 MUA 主服务器</span>
+            <FaSwitch v-model="model.form.unionSyncEnabled" />
+            <p class="yggc-help">
+              开启后按下面的间隔做一次增量对账：新建的角色推送（POST /profile）、改名的更新（PUT /profile/&#123;uuid&#125;）、
+              已删除的从主服务器移除（DELETE /profile/&#123;uuid&#125;）。每次只推送有差异的条目，角色没有变化时不打扰主服务器。
+            </p>
+          </label>
+          <label>
+            <span>角色同步间隔（分钟）</span>
+            <input
+              v-model.number="model.form.unionSyncIntervalMinutes"
+              class="yggc-input"
+              type="number"
+              min="1"
+              max="1440"
+              step="1"
+            >
+            <p class="yggc-help">1 - 1440 分钟，默认 10。间隔越短，新角色越快到主服务器，但对本站与主服务器的压力也越大。</p>
+          </label>
+          <label>
+            <span>玩家登录时补推新角色</span>
+            <FaSwitch v-model="model.form.unionSyncOnLogin" />
+            <p class="yggc-help">
+              角色是在皮肤站创建的，插件无法在「点下创建」的那一刻收到通知。开启后，玩家用启动器登录或进入服务器时会立即补推他本人的新角色，
+              相当于把「创建后第一次使用」当作推送时机；不想额外产生上游请求时可以关闭，只依赖定时对账。
+            </p>
+          </label>
           <div v-if="model.diagnosis" class="yggc-diagnosis">
             <div class="yggc-status-line">
               <span>连通性</span>

@@ -4,7 +4,6 @@ import online.yudream.base.plugin.skin.api.PluginSkinProfile;
 import online.yudream.base.plugin.skin.api.PluginSkinService;
 import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.system.user.PluginUserProfile;
-import online.yudream.base.plugin.spi.system.user.PluginUserOption;
 import online.yudream.base.plugin.yggc.domain.aggregate.YggcSettings;
 import online.yudream.base.plugin.yggc.domain.valobj.KeyMaterial;
 import online.yudream.base.plugin.yggc.infrastructure.repository.YggcRepository;
@@ -23,13 +22,12 @@ import java.util.Optional;
 /**
  * Union 联邦协议应用服务：成员站与 Union 主服务器的全部交互。
  * - 上游数据获取：签名私钥（由主服务器分发）、皮肤站列表、跨站角色数据、黑名单、安全等级；
- * - 角色 / 全量数据推送：POST /profile*、POST /sync；
- * - 成员回调（由 UnionService 承接业务，HTTP 层负责主机签名验证）。
+ * - 成员回调（由 UnionService 承接业务，HTTP 层负责主机签名验证）；
+ * - 角色推送（POST /profile*、POST /sync）见 {@link YggcProfileSyncService}。
  */
 public class YggcUnionService {
 
     private static final String SKIN_PLUGIN_CODE = "yudream-skin";
-    private static final int USER_PAGE_SIZE = 100;
 
     private final PluginContext context;
     private final YggcRepository repository;
@@ -61,9 +59,7 @@ public class YggcUnionService {
 
     private UnionResult requireOk(UnionResult result, String action) {
         if (!result.ok()) {
-            throw new IllegalArgumentException(action + " 失败："
-                    + (result.status() == 0 ? result.body()
-                    : "上游返回 HTTP " + result.status() + "：" + snippet(result.body())));
+            throw new IllegalArgumentException(action + " 失败：" + YggcUnionClient.failureMessage(result));
         }
         return result;
     }
@@ -115,18 +111,7 @@ public class YggcUnionService {
         return state;
     }
 
-    /** 全量角色同步：把本站全部角色（uuid → name）推送到 Union 主服务器。 */
-    public Map<String, Object> triggerSync() {
-        Map<String, String> profileList = collectAllProfiles();
-        UnionResult result = requireOk(unionClient.post(apiRoot(), "/sync",
-                Map.of("profileList", profileList), memberKey()), "全量角色同步");
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("profileCount", profileList.size());
-        body.put("status", result.status());
-        body.put("response", result.json() != null ? result.json() : snippet(result.body()));
-        body.put("message", "已向 Union 主服务器推送 " + profileList.size() + " 个角色");
-        return body;
-    }
+    /** 全量角色同步已迁至 {@link YggcProfileSyncService}（同时维护推送快照）。 */
 
     /** 上游公告信息（GET /），含 union_host_signature_public_key 与各数据版本。 */
     public Map<String, Object> helloUpstream() {
@@ -169,26 +154,6 @@ public class YggcUnionService {
     /** 是否已导入 Union 主服务器分发的签名私钥。 */
     public boolean unionPrivateKeySynced() {
         return repository.unionPrivateKey().isPresent();
-    }
-
-    // ---- 角色推送 ----
-
-    public Map<String, Object> pushProfile(String uuid, String name) {
-        UnionResult result = requireOk(unionClient.post(apiRoot(), "/profile",
-                Map.of("id", uuid, "name", name), memberKey()), "推送角色");
-        return result.json() != null ? result.json() : Map.of("status", result.status());
-    }
-
-    public Map<String, Object> updateProfile(String uuid, String name) {
-        UnionResult result = requireOk(unionClient.put(apiRoot(), "/profile/" + YggcUnionClient.encode(uuid),
-                Map.of("name", name), memberKey()), "更新角色");
-        return result.json() != null ? result.json() : Map.of("status", result.status());
-    }
-
-    public Map<String, Object> removeProfile(String uuid) {
-        UnionResult result = requireOk(unionClient.delete(apiRoot(), "/profile/" + YggcUnionClient.encode(uuid),
-                memberKey()), "删除角色");
-        return result.json() != null ? result.json() : Map.of("status", result.status());
     }
 
     // ---- 用户端：跨站角色 ----
@@ -381,16 +346,7 @@ public class YggcUnionService {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("缺少 key 字段");
         }
-        YggcSettings settings = settings();
-        settingsService.save(new YggcSettings(
-                settings.uuidAlgorithm(), settings.tokenExpire(), settings.tokenRefreshExpire(),
-                settings.tokensLimit(), settings.rateLimit(), settings.skinDomain(),
-                settings.searchProfileMax(), settings.showConfigSection(), settings.enableAli(),
-                settings.restoreApi(), settings.disableAuthserver(), settings.connectServerUrl(),
-                settings.unionApiRoot(), key.trim(), settings.unionEnableUpdate(),
-                settings.unionEnableOauth2(), settings.oauthAccessTtl(), settings.oauthRefreshTtl(),
-                settings.oauthDeviceTtl(), settings.serverName()
-        ));
+        settingsService.save(settings().withUnionMemberKey(key.trim()));
     }
 
     /** POST /union/member/updateplugin：YuDream 插件不支持热更新，返回说明。 */
@@ -429,24 +385,6 @@ public class YggcUnionService {
     }
 
     // ---- 内部 ----
-
-    private Map<String, String> collectAllProfiles() {
-        Map<String, String> profileList = new LinkedHashMap<>();
-        int page = 1;
-        while (true) {
-            List<PluginUserOption> users = context.framework().users()
-                    .searchUsers("", null, page, USER_PAGE_SIZE);
-            for (PluginUserOption user : users) {
-                for (PluginSkinProfile profile : profilesOf(user.id())) {
-                    profileList.put(profile.uuid(), profile.name());
-                }
-            }
-            if (users.size() < USER_PAGE_SIZE) {
-                return profileList;
-            }
-            page++;
-        }
-    }
 
     private List<PluginSkinProfile> profilesOf(String userId) {
         if (userId == null || userId.isBlank()) {

@@ -106,6 +106,12 @@ public class YggcAdminController {
         return http.syncUnionProfiles(request);
     }
 
+    /** 增量对账：与定时任务同一条路径，只补推有差异的角色。 */
+    @PluginHttpEndpoint(method = "POST", path = "/admin/union/reconcile-profiles", permission = YggcPlugin.MANAGE_PERMISSION)
+    public PluginHttpResponse reconcileUnionProfiles(PluginHttpRequest request) {
+        return http.reconcileUnionProfiles(request);
+    }
+
     @PluginHttpEndpoint(method = "GET", path = "/admin/union/blacklist", permission = YggcPlugin.MANAGE_PERMISSION)
     public PluginHttpResponse blacklistQuery(PluginHttpRequest request) {
         return http.blacklistQuery(request);

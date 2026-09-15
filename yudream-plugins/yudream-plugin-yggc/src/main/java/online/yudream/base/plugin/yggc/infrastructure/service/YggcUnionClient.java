@@ -39,6 +39,22 @@ public class YggcUnionClient {
         }
     }
 
+    /** 上游失败的统一中文说明：status = 0 表示连不上，其余附带状态码与响应摘要。 */
+    public static String failureMessage(UnionResult result) {
+        if (result.status() == 0) {
+            return result.body();
+        }
+        return "上游返回 HTTP " + result.status() + "：" + snippet(result.body());
+    }
+
+    private static String snippet(String body) {
+        if (body == null) {
+            return "";
+        }
+        String trimmed = body.trim();
+        return trimmed.length() <= 300 ? trimmed : trimmed.substring(0, 300) + "...";
+    }
+
     // ---- 基础调用 ----
 
     public UnionResult get(String apiRoot, String path, String memberKey) {

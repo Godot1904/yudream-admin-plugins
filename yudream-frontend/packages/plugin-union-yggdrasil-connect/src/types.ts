@@ -99,6 +99,12 @@ export interface YggcSettings {
   unionMemberKey: string
   unionEnableUpdate: boolean
   unionEnableOauth2: boolean
+  /** 定期把本站角色同步到 MUA 主服务器（增量对账） */
+  unionSyncEnabled: boolean
+  /** 角色同步间隔（分钟，1 - 1440） */
+  unionSyncIntervalMinutes: number
+  /** 玩家登录 / 进入服务器时补推他本人的新角色 */
+  unionSyncOnLogin: boolean
   oauthAccessTtl: number
   oauthRefreshTtl: number
   oauthDeviceTtl: number
@@ -110,6 +116,8 @@ export interface YggcSettings {
     'union-oauth2'?: YggcKeyPairInfo
   }
   union?: YggcUnionLocalState
+  /** 角色同步状态（GET /admin/config 附带返回） */
+  profileSync?: YggcUnionProfileSyncState
 }
 
 export interface YggcKeyPairInfo {
@@ -196,6 +204,37 @@ export interface YggcUnionLocalState {
   serverCount: number
 }
 
+/** 角色同步（本地角色 → MUA 主服务器）的状态与上次结果。 */
+export interface YggcUnionProfileSyncState {
+  /** 定时自动同步开关 */
+  enabled: boolean
+  /** 同步间隔（分钟） */
+  intervalMinutes: number
+  /** 玩家登录时补推开关 */
+  onLoginPush: boolean
+  /** Union API Root 与 Member Key 是否都已配置 */
+  ready: boolean
+  /** 当前是否有一轮同步在执行 */
+  running: boolean
+  /** 已确认推送到主服务器的角色数 */
+  pushedCount: number
+  /** 上次同步时间 */
+  syncedAt?: number
+  /** 上次同步方式：delta（增量对账）/ full（全量推送）/ bootstrap（首次回落全量）/ login（登录补推） */
+  mode?: string
+  lastResult?: {
+    mode?: string
+    added?: number
+    renamed?: number
+    removed?: number
+    failed?: number
+    pushedCount?: number
+    message?: string
+  }
+  /** 最近的致命失败（上游不可达等），成功后不再保留 */
+  lastError?: string
+}
+
 /** 上游连通性（GET / 公告探测）。 */
 export interface YggcUnionUpstream {
   reachable: boolean
@@ -209,6 +248,7 @@ export interface YggcUnionStatus extends YggcUnionLocalState {
   apiRoot: string
   memberKeyConfigured: boolean
   upstream: YggcUnionUpstream
+  profileSync: YggcUnionProfileSyncState
 }
 
 /** 从上游同步签名私钥的响应。 */

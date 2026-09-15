@@ -63,6 +63,7 @@ export function createYggcApi(sdk: YuDreamPluginSdk) {
     syncUnionServerList: () =>
       sdk.http.post<YggcUnionSyncResult>('/admin/union/sync-serverlist'),
     syncUnionProfiles: () => sdk.http.post<YggcUnionSyncResult>('/admin/union/sync-profiles'),
+    reconcileUnionProfiles: () => sdk.http.post<YggcUnionSyncResult>('/admin/union/reconcile-profiles'),
     // ---- 管理端：MUA 黑名单代理 ----
     blacklistQuery: (params: Record<string, string>) =>
       sdk.http.get<YggcUnionBlacklistResult>(`/admin/union/blacklist${buildQuery(params)}`),

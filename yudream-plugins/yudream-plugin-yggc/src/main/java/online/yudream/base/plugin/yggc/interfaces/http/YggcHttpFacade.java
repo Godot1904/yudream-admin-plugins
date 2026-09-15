@@ -8,6 +8,7 @@ import online.yudream.base.plugin.yggc.application.service.YggcAppService;
 import online.yudream.base.plugin.yggc.application.service.YggcAppService.YggcException;
 import online.yudream.base.plugin.yggc.application.service.YggcOAuthService;
 import online.yudream.base.plugin.yggc.application.service.YggcOAuthService.OAuthException;
+import online.yudream.base.plugin.yggc.application.service.YggcProfileSyncService;
 import online.yudream.base.plugin.yggc.application.service.YggcSettingsService;
 import online.yudream.base.plugin.yggc.application.service.YggcUnionService;
 import online.yudream.base.plugin.yggc.domain.aggregate.YggcSettings;
@@ -57,11 +58,13 @@ public class YggcHttpFacade {
     private final YggcCryptoService cryptoService;
     private final YggcUnionService unionService;
     private final YggcUnionHostVerifier unionHostVerifier;
+    private final YggcProfileSyncService profileSyncService;
 
     public YggcHttpFacade(YggcAppService appService, YggcOAuthService oauthService,
                           FrameworkServices frameworkServices, YggcSettingsService settingsService,
                           YggcUnionClient unionClient, YggcCryptoService cryptoService,
-                          YggcUnionService unionService, YggcUnionHostVerifier unionHostVerifier) {
+                          YggcUnionService unionService, YggcUnionHostVerifier unionHostVerifier,
+                          YggcProfileSyncService profileSyncService) {
         this.appService = appService;
         this.oauthService = oauthService;
         this.frameworkServices = frameworkServices;
@@ -70,6 +73,7 @@ public class YggcHttpFacade {
         this.cryptoService = cryptoService;
         this.unionService = unionService;
         this.unionHostVerifier = unionHostVerifier;
+        this.profileSyncService = profileSyncService;
     }
 
     // ---- 协议元数据 ----
@@ -335,6 +339,7 @@ public class YggcHttpFacade {
         keyPairs.put("union-oauth2", cryptoService.keyPairInfo("union-oauth2"));
         body.put("keyPairs", keyPairs);
         body.put("union", unionService.unionLocalState());
+        body.put("profileSync", profileSyncService.state());
         return PluginHttpResponse.ok(body);
     }
 
@@ -417,7 +422,9 @@ public class YggcHttpFacade {
 
     /** Union 状态总览：本地数据版本 + 上游公告。 */
     public PluginHttpResponse unionStatus(PluginHttpRequest request) {
-        return PluginHttpResponse.ok(unionService.unionStatus());
+        Map<String, Object> body = new LinkedHashMap<>(unionService.unionStatus());
+        body.put("profileSync", profileSyncService.state());
+        return PluginHttpResponse.ok(body);
     }
 
     /** 从 Union 主服务器拉取签名私钥（用户信息签名密钥由主服务器生成并分发）。 */
@@ -429,8 +436,14 @@ public class YggcHttpFacade {
         return unionAction(unionService::syncServerList);
     }
 
+    /** 全量角色推送：POST /sync 一次提交本站全部角色。 */
     public PluginHttpResponse syncUnionProfiles(PluginHttpRequest request) {
-        return unionAction(unionService::triggerSync);
+        return unionAction(profileSyncService::fullSync);
+    }
+
+    /** 增量对账：只补推新增 / 改名 / 删除的角色（定时任务用的同一条路径）。 */
+    public PluginHttpResponse reconcileUnionProfiles(PluginHttpRequest request) {
+        return unionAction(profileSyncService::reconcile);
     }
 
     private PluginHttpResponse unionAction(java.util.function.Supplier<Object> action) {
@@ -675,8 +688,9 @@ public class YggcHttpFacade {
         });
     }
 
+    /** POST /union/member/sync：主服务器要求本站重推全部角色。 */
     public PluginHttpResponse unionMemberSync(PluginHttpRequest request) {
-        return memberAction(request, ignored -> unionService.triggerSync());
+        return memberAction(request, ignored -> profileSyncService.fullSync());
     }
 
     public PluginHttpResponse unionMemberRemapUuid(PluginHttpRequest request) {

@@ -32,8 +32,10 @@ export function useYggcUnion(sdk: YuDreamPluginSdk) {
   const syncingKey = ref(false)
   const syncingList = ref(false)
   const syncingProfiles = ref(false)
+  const reconciling = ref(false)
   const status = ref<YggcUnionStatus | null>(null)
   const lastSyncResult = ref<YggcUnionSyncResult | null>(null)
+  const lastReconcileResult = ref<YggcUnionSyncResult | null>(null)
 
   async function load() {
     loading.value = true
@@ -87,9 +89,23 @@ export function useYggcUnion(sdk: YuDreamPluginSdk) {
     })
   }
 
+  /** 增量对账：只补推新增 / 改名 / 删除的角色，和定时任务走同一条后端路径。 */
+  async function reconcileProfiles() {
+    reconciling.value = true
+    try {
+      lastReconcileResult.value = await api.reconcileUnionProfiles()
+      toast.success(lastReconcileResult.value.message || '增量对账完成')
+      await load()
+    }
+    finally {
+      reconciling.value = false
+    }
+  }
+
   return reactive({
-    loading, syncingKey, syncingList, syncingProfiles, status, lastSyncResult, serverNames,
-    load, syncPrivateKey, syncServerList, syncProfiles,
+    loading, syncingKey, syncingList, syncingProfiles, reconciling, status,
+    lastSyncResult, lastReconcileResult, serverNames,
+    load, syncPrivateKey, syncServerList, syncProfiles, reconcileProfiles,
   })
 }
 

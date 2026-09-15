@@ -46,6 +46,12 @@ public record YggcSettings(
         boolean unionEnableUpdate,
         /** 启用 Union OAuth2（允许 Union 主服务器通过本站登录），对应 union_enable_oauth2 */
         boolean unionEnableOauth2,
+        /** 定期把本站角色同步到 Union 主服务器（增量对账） */
+        boolean unionSyncEnabled,
+        /** 角色同步间隔（分钟），仅在 unionSyncEnabled 打开时生效 */
+        int unionSyncIntervalMinutes,
+        /** 玩家登录（启动器认证 / 进入服务器）时顺带补推他本人的新角色 */
+        boolean unionSyncOnLogin,
         /** OAuth 访问令牌有效期（秒） */
         long oauthAccessTtl,
         /** OAuth 刷新令牌有效期（秒） */
@@ -59,6 +65,9 @@ public record YggcSettings(
     public static final String ALGORITHM_V3 = "v3";
     public static final String ALGORITHM_V4 = "v4";
     public static final String DEFAULT_UNION_API_ROOT = "https://skin.mualliance.ltd/api/union";
+    /** 角色同步间隔的合法区间（分钟）。 */
+    public static final int MIN_SYNC_INTERVAL_MINUTES = 1;
+    public static final int MAX_SYNC_INTERVAL_MINUTES = 1440;
 
     private static final long MINUTE = 60L;
     private static final long DAY = 86400L;
@@ -81,6 +90,9 @@ public record YggcSettings(
                 "",
                 true,
                 false,
+                true,
+                10,
+                true,
                 604800L,
                 2592000L,
                 600L,
@@ -110,6 +122,9 @@ public record YggcSettings(
                 text(document, "unionMemberKey", defaults.unionMemberKey),
                 bool(document, "unionEnableUpdate", defaults.unionEnableUpdate),
                 bool(document, "unionEnableOauth2", defaults.unionEnableOauth2),
+                bool(document, "unionSyncEnabled", defaults.unionSyncEnabled),
+                (int) number(document, "unionSyncIntervalMinutes", defaults.unionSyncIntervalMinutes),
+                bool(document, "unionSyncOnLogin", defaults.unionSyncOnLogin),
                 number(document, "oauthAccessTtl", defaults.oauthAccessTtl),
                 number(document, "oauthRefreshTtl", defaults.oauthRefreshTtl),
                 number(document, "oauthDeviceTtl", defaults.oauthDeviceTtl),
@@ -136,10 +151,27 @@ public record YggcSettings(
                 cut(unionMemberKey, 512),
                 unionEnableUpdate,
                 unionEnableOauth2,
+                unionSyncEnabled,
+                (int) clamp(unionSyncIntervalMinutes, MIN_SYNC_INTERVAL_MINUTES, MAX_SYNC_INTERVAL_MINUTES, 10L),
+                unionSyncOnLogin,
                 clamp(oauthAccessTtl, 5L * MINUTE, 365L * DAY, 604800L),
                 clamp(oauthRefreshTtl, 5L * MINUTE, 365L * DAY, 2592000L),
                 clamp(oauthDeviceTtl, MINUTE, DAY, 600L),
                 cut(serverName, 64)
+        );
+    }
+
+    /**
+     * 轮换 Union Member Key：主服务器下发新密钥时使用。
+     * 用具名方法而不是逐个位置构造，避免以后增删字段时静默串位。
+     */
+    public YggcSettings withUnionMemberKey(String newMemberKey) {
+        return new YggcSettings(
+                uuidAlgorithm, tokenExpire, tokenRefreshExpire, tokensLimit, rateLimit, skinDomain,
+                searchProfileMax, showConfigSection, enableAli, restoreApi, disableAuthserver,
+                connectServerUrl, unionApiRoot, cut(newMemberKey, 512), unionEnableUpdate,
+                unionEnableOauth2, unionSyncEnabled, unionSyncIntervalMinutes, unionSyncOnLogin,
+                oauthAccessTtl, oauthRefreshTtl, oauthDeviceTtl, serverName
         );
     }
 
@@ -186,6 +218,9 @@ public record YggcSettings(
         document.put("unionMemberKey", unionMemberKey);
         document.put("unionEnableUpdate", unionEnableUpdate);
         document.put("unionEnableOauth2", unionEnableOauth2);
+        document.put("unionSyncEnabled", unionSyncEnabled);
+        document.put("unionSyncIntervalMinutes", unionSyncIntervalMinutes);
+        document.put("unionSyncOnLogin", unionSyncOnLogin);
         document.put("oauthAccessTtl", oauthAccessTtl);
         document.put("oauthRefreshTtl", oauthRefreshTtl);
         document.put("oauthDeviceTtl", oauthDeviceTtl);

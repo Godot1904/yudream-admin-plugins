@@ -49,14 +49,16 @@ public class YggcAppService {
     private final YggcRepository repository;
     private final YggcCryptoService cryptoService;
     private final YggcSettingsService settingsService;
+    private final YggcProfileSyncTrigger profileSyncTrigger;
     private final Map<String, Long> lastCalls = new ConcurrentHashMap<>();
 
     public YggcAppService(PluginContext context, YggcRepository repository, YggcCryptoService cryptoService,
-                          YggcSettingsService settingsService) {
+                          YggcSettingsService settingsService, YggcProfileSyncTrigger profileSyncTrigger) {
         this.context = context;
         this.repository = repository;
         this.cryptoService = cryptoService;
         this.settingsService = settingsService;
+        this.profileSyncTrigger = profileSyncTrigger;
     }
 
     public YggcSettings settings() {
@@ -150,6 +152,8 @@ public class YggcAppService {
         PluginSkinProfile selected = profiles.get(0);
         AuthSession session = createSession(clientToken, user, selected, settings);
         pruneSessions(String.valueOf(user.id()), settings.tokensLimit());
+        // 玩家刚用启动器登录：顺手把这位玩家名下的新角色补推到 Union 主服务器（异步，不影响登录耗时）。
+        profileSyncTrigger.profilesInUse(String.valueOf(user.id()));
         return tokenResponse(session, profiles, selected, Boolean.TRUE.equals(request.requestUser()));
     }
 
@@ -207,6 +211,8 @@ public class YggcAppService {
         ));
         LOG.info("[yggc] join 成功：角色 " + profile.name() + "（" + profile.uuid() + "）加入服务器 serverId="
                 + request.serverId() + "，有效期 " + JOIN_TTL / 1000 + " 秒");
+        // 进入服务器同样是一次「角色已被使用」，用于兜住跳过 authserver 的场景（如 OAuth 登录）。
+        profileSyncTrigger.profilesInUse(session.userId());
     }
 
     public Optional<Object> hasJoined(String username, String serverId, String textureBaseUrl) {

@@ -130,6 +130,11 @@
   font-size: 13px;
 }
 
+/* 同步失败等需要被注意到的说明，与其他插件一致只取主题的危险色变量。 */
+.yggc-help--danger {
+  color: var(--color-danger-6, #f53f3f);
+}
+
 .yggc-address-row {
   display: flex;
   flex-wrap: wrap;
