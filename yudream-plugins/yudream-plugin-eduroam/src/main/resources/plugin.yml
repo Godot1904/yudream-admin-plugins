@@ -1,0 +1,6 @@
+name: eduroam
+displayName: Eduroam 认证
+description: 用校园网 / Eduroam 账号密码作为第三方登录，登录页一键进入凭据页，校验通过后由宿主完成绑定与会话签发。
+icon: i-ri:wifi-line
+main: online.yudream.base.plugin.eduroam.bootstrap.EduroamPlugin
+version: 1.1.0

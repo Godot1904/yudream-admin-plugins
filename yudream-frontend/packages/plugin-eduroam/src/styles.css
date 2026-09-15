@@ -1,0 +1,129 @@
+/* Eduroam 认证插件的页面样式：只使用宿主主题变量，不写死色值。 */
+
+.eduroam-page,
+.eduroam-login {
+  display: block;
+}
+
+.eduroam-card {
+  max-width: 720px;
+}
+
+.eduroam-login {
+  display: grid;
+  gap: 16px;
+}
+
+.eduroam-field {
+  display: grid;
+  gap: 6px;
+}
+
+.eduroam-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-1);
+}
+
+.eduroam-help {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-3);
+}
+
+.eduroam-sub {
+  font-size: 0.75rem;
+  color: var(--color-text-3);
+}
+
+.eduroam-sub-center {
+  text-align: center;
+}
+
+.eduroam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.eduroam-actions-end {
+  justify-content: flex-end;
+}
+
+.eduroam-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.eduroam-search {
+  width: 100%;
+  max-width: 320px;
+}
+
+.eduroam-filter-select {
+  width: 160px;
+}
+
+.eduroam-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.eduroam-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.eduroam-switch {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 420px;
+}
+
+.eduroam-tutorial {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--color-text-2);
+  white-space: pre-wrap;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+}
+
+.eduroam-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-3);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.eduroam-form {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .eduroam-grid,
+  .eduroam-grid.three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .eduroam-search,
+  .eduroam-filter-select {
+    max-width: none;
+    width: 100%;
+  }
+}

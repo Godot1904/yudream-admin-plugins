@@ -52,6 +52,7 @@
         <module>yudream-plugins/yudream-plugin-questionbank</module>
         <module>yudream-plugins/yudream-plugin-timeline</module>
         <module>yudream-plugins/yudream-plugin-edu-verify</module>
+        <module>yudream-plugins/yudream-plugin-eduroam</module>
         <module>yudream-plugins/yudream-plugin-mc-pet</module>
         <module>yudream-plugins/yudream-plugin-neco-pixel</module>
         <module>yudream-plugins/yudream-plugin-mc-news</module>
