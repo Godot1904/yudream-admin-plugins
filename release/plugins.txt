@@ -11,6 +11,7 @@
 #   - questionbank 1.4.0：群指令开放时间限制
 #   - points-mall 1.1.0：新增积分商城（封面与凭证走宿主对象存储、结算资产按商品设置、发放凭证 + 用户确认收货）
 #   - eduroam 1.1.0：新增 Eduroam 第三方登录（凭据页 + 一次性票据回宿主外部登录回调、登录账号台账与封禁、尝试审计、渠道配置）
+#   - yggc 1.1.0：角色自动同步到 MUA 主服务器（定时增量对账 + 玩家登录补推 + 推送快照）
 # 未列入的插件不打包、不发布、不跟随升版。
 yudream-plugin-minecraft-server
 yudream-plugin-minecraft-activity-proof
@@ -18,3 +19,4 @@ yudream-plugin-project-progress
 yudream-plugin-questionbank
 yudream-plugin-points-mall
 yudream-plugin-eduroam
+yudream-plugin-yggc
