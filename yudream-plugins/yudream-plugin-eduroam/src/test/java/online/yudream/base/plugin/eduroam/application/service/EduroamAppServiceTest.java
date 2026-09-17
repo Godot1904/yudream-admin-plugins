@@ -1,6 +1,7 @@
 package online.yudream.base.plugin.eduroam.application.service;
 
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamLoginCmd;
+import online.yudream.base.plugin.eduroam.application.cmd.EduroamRegisterCmd;
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamSettingsSaveCmd;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamAccountDTO;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamAttemptDTO;
@@ -69,6 +70,7 @@ class EduroamAppServiceTest {
         EduroamLoginResultDTO result = login("s3cret");
 
         assertTrue(result.success());
+        assertTrue(result.registrationRequired());
         assertEquals("2023123456@mail.example.edu.cn", result.email());
         assertEquals("2023123456@example.edu.cn", result.identity());
         assertEquals("2023123456", result.account());
@@ -83,6 +85,92 @@ class EduroamAppServiceTest {
         assertEquals(1, account.loginCount());
         assertEquals(IP, account.lastLoginIp());
         assertEquals(now, account.lastLoginAt());
+    }
+
+    @Test
+    void verifiedStudentSetsSeparatePasswordAndCreatesMappedSiteAccount() {
+        EduroamLoginResultDTO proof = login("s3cret");
+        EduroamRegisterCmd command = new EduroamRegisterCmd(proof.ticket(), STATE, "site-new-password", "site-new-password");
+        EduroamLoginResultDTO created = app.register(command, IP);
+        assertTrue(created.accountCreated());
+        assertFalse(created.registrationRequired());
+        assertEquals("2023123456@mail.example.edu.cn", created.email());
+        assertEquals(created.email(), localUsers.findByEmail(created.email()).orElseThrow().username());
+        assertEquals("site-new-password", localUsers.createdPassword);
+        assertEquals(1, localUsers.createCount);
+        assertEquals(1, probe.identities().size(), "开户不重复发送校园密码");
+        assertEquals(proof.expiresAt(), created.expiresAt());
+        assertFalse(command.toString().contains("site-new-password"));
+        assertFalse(app.listAttempts(null, null, 1, 20).toString().contains("site-new-password"));
+        assertThrows(IllegalArgumentException.class, () -> app.register(command, IP));
+        assertThrows(IllegalArgumentException.class, () -> app.consumeTicket(proof.ticket(), STATE, "eduroam"));
+        assertEquals(created.email(), app.consumeTicket(created.ticket(), STATE, "eduroam").email());
+        assertFalse(login("s3cret").registrationRequired(), "重复登录不再要求设置密码");
+    }
+
+    @Test
+    void existingAccountIsNeverOverwrittenEvenIfCreatedDuringPasswordForm() {
+        EduroamLoginResultDTO proof = login("s3cret");
+        localUsers.register(proof.email(), "9001", "existing", "已有账号");
+        EduroamLoginResultDTO result = app.register(
+                new EduroamRegisterCmd(proof.ticket(), STATE, "new-password", "new-password"), IP);
+        assertFalse(result.accountCreated());
+        assertEquals(0, localUsers.createCount);
+        assertEquals("9001", localUsers.findByEmail(proof.email()).orElseThrow().userId());
+    }
+
+    @Test
+    void weakOrMismatchedPasswordDoesNotConsumeProof() {
+        EduroamLoginResultDTO proof = login("s3cret");
+        for (String password : List.of("", "short", " ".repeat(8), "a".repeat(73), "密".repeat(25))) {
+            assertThrows(IllegalArgumentException.class, () -> app.register(
+                    new EduroamRegisterCmd(proof.ticket(), STATE, password, password), IP));
+        }
+        assertThrows(IllegalArgumentException.class, () -> app.register(
+                new EduroamRegisterCmd(proof.ticket(), STATE, "new-password", "different-password"), IP));
+        assertEquals(0, localUsers.createCount);
+        assertTrue(app.register(new EduroamRegisterCmd(proof.ticket(), STATE,
+                "new-password", "new-password"), IP).accountCreated());
+    }
+
+    @Test
+    void registrationRejectsFakeExpiredAndMismatchedProofs() {
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd("fake", STATE), IP));
+        var proof = login("s3cret");
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(proof.ticket(), "other-state"), IP));
+        var expired = login("s3cret");
+        now = expired.expiresAt();
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(expired.ticket(), STATE), IP));
+        assertEquals(0, localUsers.createCount);
+    }
+
+    @Test
+    void registrationRechecksBlockAndChannelAndEmailMapping() {
+        var blocked = login("s3cret");
+        app.blockAccount(blocked.email(), "9001", "停用");
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(blocked.ticket(), STATE), IP));
+        app.unblockAccount(blocked.email(), "9001");
+        var disabled = login("s3cret");
+        app.saveSettings(new EduroamSettingsSaveCmd(false, null, null, null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(disabled.ticket(), STATE), IP));
+        app.saveSettings(new EduroamSettingsSaveCmd(true, null, null, null, null, null, null, null));
+        var changed = login("s3cret");
+        app.saveSettings(new EduroamSettingsSaveCmd(null, null, "other.edu.cn", null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(changed.ticket(), STATE), IP));
+        assertEquals(0, localUsers.createCount);
+    }
+
+    @Test
+    void unavailableUserDirectoryNeverMeansCreateANewAccount() {
+        var proof = login("s3cret");
+        localUsers.unavailable = true;
+        assertThrows(IllegalArgumentException.class, () -> app.register(registerCmd(proof.ticket(), STATE), IP));
+        assertThrows(IllegalArgumentException.class, () -> login("s3cret"));
+        assertEquals(0, localUsers.createCount);
+    }
+
+    private EduroamRegisterCmd registerCmd(String ticket, String state) {
+        return new EduroamRegisterCmd(ticket, state, "new-password", "new-password");
     }
 
     @Test
@@ -336,6 +424,28 @@ class EduroamAppServiceTest {
         now += EduroamAppService.TICKET_TTL_MILLIS + 1L;
         login("s3cret");
         assertEquals(1, tickets.count(), "过期票据应在下次登录时被清理，只剩刚签发的那张");
+    }
+
+    @Test
+    void savedSchoolSuffixImmediatelyAppliesToPublicConfigAndLogin() {
+        assertEquals("example.edu.cn", app.publicConfig().eduDomain());
+        app.saveSettings(new EduroamSettingsSaveCmd(null, " @School.EDU.CN ", "", null, null, null, null, null));
+        assertEquals("school.edu.cn", settingsRepository.get().eduDomain());
+        assertEquals("school.edu.cn", app.publicConfig().eduDomain());
+        assertTrue(app.publicConfig().accountHint().contains("@school.edu.cn"));
+
+        EduroamLoginResultDTO bare = app.authenticate(new EduroamLoginCmd("20260001", "s3cret", STATE), IP);
+        EduroamLoginResultDTO full = app.authenticate(new EduroamLoginCmd("20260001@school.edu.cn", "s3cret", STATE), IP);
+        assertTrue(bare.success());
+        assertTrue(full.success());
+        assertEquals("20260001@school.edu.cn", bare.identity());
+        assertEquals(bare.identity(), full.identity());
+        assertEquals(List.of(bare.identity(), bare.identity()), probe.identities());
+        assertEquals(1, accounts.count(), "简写与完整账号必须归入同一个登录账号");
+
+        assertThrows(IllegalArgumentException.class, () -> app.authenticate(
+                new EduroamLoginCmd("20260001@other.edu.cn", "s3cret", STATE), IP));
+        assertEquals(2, probe.identities().size(), "不同学校的账号应在发送凭据前拒绝");
     }
 
     @Test

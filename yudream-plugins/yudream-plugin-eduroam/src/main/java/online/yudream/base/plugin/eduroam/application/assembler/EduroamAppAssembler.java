@@ -62,15 +62,16 @@ public class EduroamAppAssembler {
         );
     }
 
-    public EduroamLoginResultDTO toLoginResultDTO(EduroamLoginTicket ticket) {
+    public EduroamLoginResultDTO toLoginResultDTO(EduroamLoginTicket ticket, boolean registrationRequired,
+                                                 boolean accountCreated) {
         return new EduroamLoginResultDTO(true, ticket.email(), ticket.identity(), ticket.account(),
-                ticket.id(), ticket.expiresAt(), "SUCCESS", "");
+                ticket.id(), ticket.expiresAt(), "SUCCESS", "", registrationRequired, accountCreated);
     }
 
     public EduroamLoginResultDTO toFailureDTO(String email, String identity, String account,
                                               String reasonCode, String message) {
         return new EduroamLoginResultDTO(false, text(email), text(identity), text(account), "", 0L,
-                reasonCode, message);
+                reasonCode, message, false, false);
     }
 
     public EduroamAttemptDTO toAttemptDTO(EduroamAttempt attempt) {
@@ -98,6 +99,7 @@ public class EduroamAppAssembler {
         }
         return switch (reasonCode) {
             case "SUCCESS" -> "登录成功";
+            case "ACCOUNT_CREATED" -> "本站账号已创建";
             case "INVALID_ACCOUNT" -> "账号格式不正确";
             case "RATE_LIMITED" -> "触发限流";
             case "BLOCKED" -> "账号已被禁止登录";
@@ -113,7 +115,7 @@ public class EduroamAppAssembler {
 
     private String accountHint(EduroamSettings settings) {
         if (settings.restrictToEduDomain()) {
-            return "只填学号/工号即可，系统会自动补 @" + settings.eduDomain();
+            return "只需填写学号或工号，学校后缀 @" + settings.eduDomain() + " 会自动补全，无需重复输入";
         }
         return "请填写完整账号，形如 学号@学校域名";
     }

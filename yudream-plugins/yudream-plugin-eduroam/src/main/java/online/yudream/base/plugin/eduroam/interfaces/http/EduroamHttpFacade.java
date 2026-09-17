@@ -4,6 +4,7 @@ import online.yudream.base.plugin.eduroam.application.service.EduroamAppService;
 import online.yudream.base.plugin.eduroam.infrastructure.support.JsonSupport;
 import online.yudream.base.plugin.eduroam.interfaces.assembler.EduroamWebAssembler;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamLoginRequest;
+import online.yudream.base.plugin.eduroam.interfaces.request.EduroamRegisterRequest;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamReviewRequest;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamSettingsSaveRequest;
 import online.yudream.base.plugin.eduroam.interfaces.res.EduroamAccountRes;
@@ -42,6 +43,11 @@ public class EduroamHttpFacade {
     public PluginHttpResponse login(PluginHttpRequest request) {
         EduroamLoginRequest body = JsonSupport.read(request.body(), EduroamLoginRequest.class);
         return PluginHttpResponse.ok(assembler.toRes(app.authenticate(assembler.toCmd(body), clientIp(request))));
+    }
+
+    public PluginHttpResponse register(PluginHttpRequest request) {
+        EduroamRegisterRequest body = JsonSupport.read(request.body(), EduroamRegisterRequest.class);
+        return PluginHttpResponse.ok(assembler.toRes(app.register(assembler.toCmd(body), clientIp(request))));
     }
 
     // ------------------------------------------------------------------ 管理端
