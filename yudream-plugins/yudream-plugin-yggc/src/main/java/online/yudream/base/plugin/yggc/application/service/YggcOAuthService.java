@@ -93,6 +93,12 @@ public class YggcOAuthService {
         body.put("code_challenge_methods_supported", List.of("S256", "plain"));
         body.put("claims_supported", List.of("sub", "aud", "iss", "selectedProfile", "availableProfiles",
                 "name", "preferred_username", "nickname", "email"));
+        // 共享客户端：没有内置 client_id 的 Yggdrasil Connect 启动器（如 PCL-CE）直接读取该字段登录。
+        // 未配置时不输出，保持发现文档与旧版本完全一致。
+        String sharedClientId = settings().sharedClientId();
+        if (YggcAppService.hasText(sharedClientId)) {
+            body.put("shared_client_id", sharedClientId);
+        }
         return body;
     }
 
@@ -504,19 +510,29 @@ public class YggcOAuthService {
         OAuthClient existing = repository.findClient(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("应用不存在"));
         boolean nextPublic = publicClient == null ? existing.publicClient() : publicClient;
+        boolean nextEnabled = enabled == null ? existing.enabled() : enabled;
+        if (_isSharedClient(existing.id()) && (!nextPublic || !nextEnabled)) {
+            throw new IllegalArgumentException("该应用正在作为共享客户端（发现文档 shared_client_id）使用，"
+                    + "不能改为机密客户端或禁用；请先在插件配置里解除共享客户端绑定");
+        }
         OAuthClient updated = new OAuthClient(existing.id(),
                 name == null || name.isBlank() ? existing.name() : name.trim(),
                 nextPublic ? null : existing.secretHash(),
                 redirectUris == null ? existing.redirectUris() : sanitizeRedirectUris(redirectUris),
                 nextPublic,
-                enabled == null ? existing.enabled() : enabled,
+                nextEnabled,
                 existing.createdAt());
         repository.saveClient(updated);
         return clientView(updated);
     }
 
     public void deleteClient(String clientId) {
-        repository.findClient(clientId).orElseThrow(() -> new IllegalArgumentException("应用不存在"));
+        OAuthClient existing = repository.findClient(clientId)
+                .orElseThrow(() -> new IllegalArgumentException("应用不存在"));
+        if (_isSharedClient(existing.id())) {
+            throw new IllegalArgumentException("该应用正在作为共享客户端（发现文档 shared_client_id）使用，"
+                    + "删除会让所有依赖共享客户端的启动器无法登录；请先在插件配置里解除共享客户端绑定");
+        }
         repository.findTokensByClient(clientId).forEach(token -> repository.deleteToken(token.token()));
         repository.findRefreshTokensByClient(clientId).forEach(token -> repository.deleteRefreshToken(token.token()));
         repository.deleteClient(clientId);
@@ -525,12 +541,52 @@ public class YggcOAuthService {
     public Map<String, Object> resetClientSecret(String clientId) {
         OAuthClient existing = repository.findClient(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("应用不存在"));
+        if (_isSharedClient(existing.id())) {
+            throw new IllegalArgumentException("该应用正在作为共享客户端使用，转为机密客户端会让启动器无法登录；"
+                    + "请先在插件配置里解除共享客户端绑定");
+        }
         String secret = cryptoService.randomToken(32);
         repository.saveClient(new OAuthClient(existing.id(), existing.name(), cryptoService.sha256Hex(secret),
                 existing.redirectUris(), false, existing.enabled(), existing.createdAt()));
         Map<String, Object> body = clientView(existing);
         body.put("secret", secret);
         return body;
+    }
+
+    /**
+     * 可作为共享客户端的应用：启用中的公共客户端。
+     * 设备流不需要 redirect_uri，因此回调地址留空即可；空回调同时避免共享 id 被用于授权码流。
+     */
+    public List<Map<String, Object>> eligibleSharedClients() {
+        return _allClients().stream()
+                .filter(OAuthClient::enabled)
+                .filter(OAuthClient::publicClient)
+                .map(client -> {
+                    Map<String, Object> view = clientView(client);
+                    view.put("shared", _isSharedClient(client.id()));
+                    return view;
+                })
+                .toList();
+    }
+
+    private List<OAuthClient> _allClients() {
+        List<OAuthClient> clients = new ArrayList<>();
+        int page = 1;
+        while (true) {
+            List<OAuthClient> batch = repository.findClients(null, page, 200);
+            if (batch.isEmpty()) {
+                return clients;
+            }
+            clients.addAll(batch);
+            if (batch.size() < 200) {
+                return clients;
+            }
+            page++;
+        }
+    }
+
+    private boolean _isSharedClient(String clientId) {
+        return YggcAppService.hasText(clientId) && clientId.equals(settings().sharedClientId());
     }
 
     // ---- 令牌管理（管理员） ----
@@ -610,6 +666,11 @@ public class YggcOAuthService {
 
     private YggcSettings settings() {
         return settingsService.current();
+    }
+
+    /** 发现文档对外声明的共享客户端；未配置时为空串。 */
+    private String sharedClientId() {
+        return settings().sharedClientId();
     }
 
     private OAuthClient requireClient(String clientId) {

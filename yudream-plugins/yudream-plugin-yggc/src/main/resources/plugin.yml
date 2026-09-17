@@ -3,6 +3,6 @@ displayName: Yggdrasil Connect 联合认证
 description: 为 Minecraft 提供 Yggdrasil API 与 Yggdrasil Connect（OAuth 2.0 / OpenID Connect）一体化认证服务，内置 Janus 的授权能力，无需外部认证服务端。
 icon: i-ri:shield-star-line
 main: online.yudream.base.plugin.yggc.bootstrap.YggcPlugin
-version: 1.1.0
+version: 1.2.0
 depend:
   - yudream-skin

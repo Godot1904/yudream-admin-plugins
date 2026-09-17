@@ -295,6 +295,11 @@ public class YggcHttpFacade {
                 intQuery(request, "size", 10)));
     }
 
+    /** 可绑定为共享客户端（发现文档 shared_client_id）的应用：启用中的公共客户端。 */
+    public PluginHttpResponse eligibleSharedClients(PluginHttpRequest request) {
+        return PluginHttpResponse.ok(oauthService.eligibleSharedClients());
+    }
+
     public PluginHttpResponse createClient(PluginHttpRequest request) {
         ClientSaveRequest save = JsonSupport.read(request.body(), ClientSaveRequest.class);
         return PluginHttpResponse.ok(oauthService.createClient(

@@ -85,5 +85,26 @@ public class YggcSettingsService {
         if (settings.oauthRefreshTtl() < settings.oauthAccessTtl()) {
             throw new IllegalArgumentException("Refresh Token 有效期不能小于 Access Token 有效期");
         }
+        validateSharedClientId(settings.sharedClientId());
+    }
+
+    /**
+     * 共享客户端（发现文档 shared_client_id）必须是已存在、启用中的公共客户端。
+     * 设备流不校验 client_secret，而机密客户端又无法共享密钥，因此只允许公共客户端。
+     */
+    private void validateSharedClientId(String sharedClientId) {
+        if (sharedClientId == null || sharedClientId.isBlank()) {
+            return;
+        }
+        var client = repository.findClient(sharedClientId.trim())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "共享客户端不存在：" + sharedClientId + "，请先在「OAuth 应用管理」里创建公共客户端"));
+        if (!client.publicClient()) {
+            throw new IllegalArgumentException("共享客户端必须是公共客户端（无 client_secret），"
+                    + "否则启动器无法在不携带密钥的情况下完成设备流登录");
+        }
+        if (!client.enabled()) {
+            throw new IllegalArgumentException("共享客户端已被禁用，请先在「OAuth 应用管理」里启用或改绑其他应用");
+        }
     }
 }

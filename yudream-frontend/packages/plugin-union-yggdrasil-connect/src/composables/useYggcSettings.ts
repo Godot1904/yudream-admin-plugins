@@ -1,4 +1,4 @@
-import type { YggcKeyPairInfo, YggcSettings, YggcUnionDiagnosis, YggcUnionLocalState, YggcUnionPrivateKeySyncResult, YggcUnionProfileSyncState } from '../types'
+import type { YggcEligibleClientView, YggcKeyPairInfo, YggcSettings, YggcUnionDiagnosis, YggcUnionLocalState, YggcUnionPrivateKeySyncResult, YggcUnionProfileSyncState } from '../types'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import { useFaModal, useFaToast } from '@yudream/components'
 import { reactive, ref } from 'vue'
@@ -30,6 +30,7 @@ function defaultSettings(): YggcSettings {
     oauthRefreshTtl: 2592000,
     oauthDeviceTtl: 600,
     serverName: '',
+    sharedClientId: '',
   }
 }
 
@@ -46,6 +47,7 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
   const unionState = ref<YggcUnionLocalState | null>(null)
   const profileSyncState = ref<YggcUnionProfileSyncState | null>(null)
   const keySyncResult = ref<YggcUnionPrivateKeySyncResult | null>(null)
+  const sharedCandidates = ref<YggcEligibleClientView[]>([])
   const form = reactive<YggcSettings>(defaultSettings())
 
   function assign(settings: YggcSettings) {
@@ -77,10 +79,23 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
   async function load() {
     loading.value = true
     try {
-      assign(await api.config())
+      const settings = await api.config()
+      assign(settings)
+      await loadSharedCandidates()
     }
     finally {
       loading.value = false
+    }
+  }
+
+  /** 可绑定为共享客户端的应用（启用中的公共客户端），供配置页下拉选择。 */
+  async function loadSharedCandidates() {
+    try {
+      sharedCandidates.value = await api.eligibleSharedClients()
+    }
+    catch {
+      // 下拉候选加载失败不阻塞配置展示，管理员仍可看到已保存的值
+      sharedCandidates.value = []
     }
   }
 
@@ -147,8 +162,9 @@ export function useYggcSettings(sdk: YuDreamPluginSdk) {
   }
 
   return reactive({
-    loading, saving, diagnosing, syncingKey, diagnosis, keyPairs, unionState, keySyncResult, profileSyncState, form,
-    load, save, reset, regenerateKeyPair, syncUnionPrivateKey, diagnoseUnion,
+    loading, saving, diagnosing, syncingKey, diagnosis, keyPairs, unionState, keySyncResult, profileSyncState,
+    sharedCandidates, form,
+    load, loadSharedCandidates, save, reset, regenerateKeyPair, syncUnionPrivateKey, diagnoseUnion,
   })
 }
 

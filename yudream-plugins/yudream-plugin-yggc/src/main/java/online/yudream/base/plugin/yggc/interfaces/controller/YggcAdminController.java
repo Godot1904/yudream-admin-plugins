@@ -26,6 +26,11 @@ public class YggcAdminController {
         return http.listClients(request);
     }
 
+    @PluginHttpEndpoint(method = "GET", path = "/admin/shared-clients", permission = YggcPlugin.MANAGE_PERMISSION)
+    public PluginHttpResponse eligibleSharedClients(PluginHttpRequest request) {
+        return http.eligibleSharedClients(request);
+    }
+
     @PluginHttpEndpoint(method = "POST", path = "/admin/clients", permission = YggcPlugin.MANAGE_PERMISSION)
     public PluginHttpResponse createClient(PluginHttpRequest request) {
         return http.createClient(request);
