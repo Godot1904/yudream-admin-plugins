@@ -21,6 +21,7 @@ public record SsoSettingsDto(
         boolean clientSecretConfigured,
         String scopes,
         String callbackUrl,
+        String casStateMode,
         boolean ready
 ) {
     public static SsoSettingsDto from(SsoSettings settings) {
@@ -42,6 +43,7 @@ public record SsoSettingsDto(
                 settings.clientSecretConfigured(),
                 settings.scopes(),
                 settings.callbackUrl(),
+                settings.casStateMode(),
                 settings.ready()
         );
     }
@@ -64,7 +66,8 @@ public record SsoSettingsDto(
                 clientId,
                 clientSecretConfigured,
                 scopes,
-                callbackUrl
+                callbackUrl,
+                casStateMode
         );
     }
 }

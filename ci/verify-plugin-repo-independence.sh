@@ -116,8 +116,9 @@ if command -v rg >/dev/null 2>&1; then
 else
   # rg honours .gitignore, so it never sees build output; grep does not. Without these excludes the
   # fallback scans node_modules (whose published SDK references @yudream/plugin-sdk/*) and the built
-  # remoteEntry.js sourcemap comments, and reports every plugin as a violation.
-  invalid_shared_imports=$(grep -R -n --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=target '@yudream/\(plugin-sdk\|components\)/' yudream-frontend/packages yudream-plugins 2>/dev/null | grep -v '@yudream/plugin-sdk/vite-shared' | grep -v '@yudream/plugin-sdk/uno-config' | grep -v '@yudream/components/resolver' || true)
+  # remoteEntry.js sourcemap comments, and reports every plugin as a violation. dist-build 是
+  # yudream-plugin-cas 自带前端的构建目录（与 dist/ 同类产物），同样必须排除。
+  invalid_shared_imports=$(grep -R -n --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=dist-build --exclude-dir=target '@yudream/\(plugin-sdk\|components\)/' yudream-frontend/packages yudream-plugins 2>/dev/null | grep -v '@yudream/plugin-sdk/vite-shared' | grep -v '@yudream/plugin-sdk/uno-config' | grep -v '@yudream/components/resolver' || true)
 fi
 
 if [ -n "$invalid_shared_imports" ]; then

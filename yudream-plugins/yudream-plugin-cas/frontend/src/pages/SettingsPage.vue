@@ -48,6 +48,7 @@ const form = reactive<SsoSettings>({
   clientSecretConfigured: false,
   scopes: 'openid profile email',
   callbackUrl: '',
+  casStateMode: 'query',
   ready: false,
 })
 
@@ -56,7 +57,19 @@ const protocolOptions = [
   { label: 'OIDC 授权码', value: 'OIDC' },
 ]
 
+const stateModeOptions = [
+  { label: '标准：state 追加在 service 查询串上', value: 'query' },
+  { label: '兜底：service 走插件固定中转地址', value: 'relay' },
+]
+
 const oidcMode = computed(() => form.protocol === 'OIDC')
+
+/** 兜底中转地址预览：站点基址从回调地址里截掉 /api/external-login 得到。 */
+const relayPathPreview = computed(() => {
+  const index = form.callbackUrl.indexOf('/api/external-login')
+  const base = index > 0 ? form.callbackUrl.slice(0, index) : ''
+  return `${base}/api/plugins/cas/public/relay`
+})
 
 function apply(data: SsoSettings) {
   Object.assign(form, data)
@@ -235,6 +248,30 @@ onMounted(() => {
           </div>
           <p class="tsu-field-hint">
             CAS 没有独立 state 参数，插件会把宿主签发的 state 编码进 service URL。校验时必须用完全相同的 service 回放。
+          </p>
+        </FaCard>
+
+        <FaCard v-if="!oidcMode" title="state 承载方式" description="个别 CAS 部署不接受 service 里带查询串，此时切到兜底模式。" content-class="tsu-card-content">
+          <FaLabel label="承载方式" class="tsu-field">
+            <FaSelect v-model="form.casStateMode" :options="stateModeOptions" />
+          </FaLabel>
+          <template v-if="form.casStateMode === 'relay'">
+            <p class="tsu-field-hint">
+              兜底模式：跳转时 service 指向插件的固定中转地址
+              <code>{{ relayPathPreview }}</code>（不含任何查询串），CAS 追加 ticket 回跳后，
+              插件把宿主 state 补回 <code>/api/external-login/callback</code>，票据校验仍用同一个 service 串。
+            </p>
+            <p class="tsu-field-hint">
+              代价：中转地址不带一次性标记，只能按「最近一次未消费的登录尝试」匹配（记录 5 分钟内有效、用后即删）。
+              因此同时开多个标签页登录、或别人诱导你打开一个带 ticket 的中转链接时，可能出现会话串号（登录 CSRF）。
+              仅在标准模式确实不被学校 CAS 接受时开启。
+            </p>
+            <p v-if="!form.callbackUrl.includes('/api/external-login')" class="tsu-field-hint tsu-field-hint--danger">
+              兜底模式要求回调地址包含 <code>/api/external-login</code>（插件据此反推站点基址与中转地址）。
+            </p>
+          </template>
+          <p v-else class="tsu-field-hint">
+            标准模式：service = 回调地址 + <code>?state=&lt;宿主 state&gt;</code>，CAS 回跳时原样带回，安全性最好。
           </p>
         </FaCard>
 

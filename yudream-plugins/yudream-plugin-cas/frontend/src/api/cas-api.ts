@@ -27,6 +27,7 @@ export function createCasApi(sdk: YuDreamPluginSdk) {
           clientSecret: clientSecret || undefined,
           scopes: data.scopes,
           callbackUrl: data.callbackUrl,
+          casStateMode: data.casStateMode,
         },
       }),
     test: () => http.post<ConnectivityResult>('/admin/test', {}),

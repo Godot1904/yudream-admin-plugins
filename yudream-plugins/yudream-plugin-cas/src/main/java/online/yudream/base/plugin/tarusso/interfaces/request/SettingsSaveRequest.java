@@ -17,6 +17,8 @@ public record SettingsSaveRequest(
         String clientId,
         String clientSecret,
         String scopes,
-        String callbackUrl
+        String callbackUrl,
+        /** state 承载方式：query（默认，追加在 service 查询串上）| relay（兜底，走插件固定中转地址）。 */
+        String casStateMode
 ) {
 }

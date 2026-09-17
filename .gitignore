@@ -5,6 +5,7 @@ Thumbs.db
 
 **/node_modules/
 **/dist/
+**/dist-build/
 **/target/
 **/.pnpm-store/
 .m2/
