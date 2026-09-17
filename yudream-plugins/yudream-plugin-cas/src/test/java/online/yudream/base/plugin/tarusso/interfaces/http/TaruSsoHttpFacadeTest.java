@@ -133,6 +133,23 @@ class TaruSsoHttpFacadeTest {
         assertTrue(html.contains("state%3Dst-state") || html.contains("state=st-state"), html);
         assertTrue(html.contains("location.replace"), html);
         assertTrue(html.contains("mode: 'no-cors'"), html);
+        // 与站点一致的观感：跟随系统深浅色 + 居中卡片 + 环形进度，且不依赖外部资源
+        assertTrue(html.contains("prefers-color-scheme: dark"), html);
+        assertTrue(html.contains("color-scheme"), html);
+        assertTrue(html.contains("class=\"card\""), html);
+        assertTrue(html.contains("class=\"spinner\""), html);
+        assertFalse(html.contains("http://") && html.contains("<link"), html);
+        // 展示名称来自配置，进页面时必须转义
+        assertTrue(html.contains("塔里木大学统一身份认证"), html);
+    }
+
+    @Test
+    void warmupPageEscapesConfiguredDisplayName() {
+        Env env = new Env();
+        env.settings.save(casReady("</title><script>alert(1)</script>"), null);
+        String html = String.valueOf(env.facade.warmup(request(Map.of("state", List.of("s1")))).body());
+        assertFalse(html.contains("<script>alert(1)</script>"), html);
+        assertTrue(html.contains("&lt;script&gt;"), html);
     }
 
     @Test
@@ -181,6 +198,14 @@ class TaruSsoHttpFacadeTest {
 
     private static SsoSettingsDto casReady() {
         return casReady(true);
+    }
+
+    private static SsoSettingsDto casReady(String displayName) {
+        SsoSettingsDto base = casReady();
+        return new SsoSettingsDto(base.enabled(), base.protocol(), displayName, base.icon(), base.casBaseUrl(),
+                base.loginPath(), base.validatePath(), base.oidcIssuer(), base.oidcAuthorizePath(), base.oidcTokenPath(),
+                base.oidcUserinfoPath(), base.oidcJwksPath(), base.oidcRegisterPath(), base.clientId(),
+                base.clientSecretConfigured(), base.scopes(), base.callbackUrl(), base.loginWarmup(), base.ready());
     }
 
     private static SsoSettingsDto casReady(boolean loginWarmup) {

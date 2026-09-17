@@ -83,51 +83,129 @@ public final class TaruSsoHttpFacade {
         return new PluginHttpResponse(200,
                 Map.of("Cache-Control", "no-store"),
                 "text/html; charset=UTF-8",
-                warmupPage(target, current.loginWarmup()),
+                warmupPage(target, current.loginWarmup(), current.displayName()),
                 false);
     }
 
-    /** 预热页 HTML：先跨站预热再 location.replace 到目标；任何异常都兜底跳转。 */
-    static String warmupPage(String target, boolean warmup) {
+    /**
+     * 预热页 HTML：先跨站预热再 location.replace 到目标；任何异常都兜底跳转。
+     *
+     * <p>样式与站点保持一致：同一套中性色板（跟随系统深浅色）、居中卡片 + 环形进度，
+     * 不引入任何外部资源（不依赖宿主的 CSS，也不会闪烁）。
+     */
+    static String warmupPage(String target, boolean warmup, String displayName) {
         String preheat = warmup
                 ? """
                   try {
-                    var controller = new AbortController()
-                    setTimeout(function () { controller.abort() }, 1200)
+                    var controller = new AbortController();
+                    setTimeout(function () { controller.abort(); }, 1200);
                     fetch(target, { mode: 'no-cors', credentials: 'include', cache: 'no-store',
-                      signal: controller.signal }).catch(function () {}).then(go)
-                  } catch (e) { go() }
+                      signal: controller.signal }).catch(function () {}).then(go);
+                  } catch (e) { go(); }
                   """
-                : "go()";
+                : "go();";
+        String name = html(displayName);
         return """
                 <!doctype html>
                 <html lang="zh-CN">
                 <head>
                   <meta charset="utf-8">
                   <meta name="referrer" content="no-referrer">
+                  <meta name="color-scheme" content="light dark">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
-                  <title>正在前往统一身份认证…</title>
+                  <title>正在前往@@NAME@@…</title>
+                  <style>
+                    :root {
+                      color-scheme: light dark;
+                      --yb-bg: #f2f3f5;
+                      --yb-card: #ffffff;
+                      --yb-text: #1d2129;
+                      --yb-sub: #86909c;
+                      --yb-border: #e5e6eb;
+                      --yb-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+                    }
+                    @media (prefers-color-scheme: dark) {
+                      :root {
+                        --yb-bg: #17171a;
+                        --yb-card: #232324;
+                        --yb-text: #f2f3f5;
+                        --yb-sub: #86909c;
+                        --yb-border: #333335;
+                        --yb-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+                      }
+                    }
+                    * { box-sizing: border-box; }
+                    body {
+                      margin: 0;
+                      min-height: 100vh;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 24px;
+                      background: var(--yb-bg);
+                      color: var(--yb-text);
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+                      font-size: 14px;
+                      line-height: 1.6;
+                    }
+                    .card {
+                      width: 360px;
+                      max-width: 100%;
+                      padding: 28px 24px;
+                      text-align: center;
+                      background: var(--yb-card);
+                      border: 1px solid var(--yb-border);
+                      border-radius: 8px;
+                      box-shadow: var(--yb-shadow);
+                    }
+                    .spinner {
+                      width: 28px;
+                      height: 28px;
+                      margin: 0 auto 16px;
+                      border: 2px solid var(--yb-border);
+                      border-top-color: var(--yb-sub);
+                      border-radius: 50%;
+                      animation: yb-spin 0.9s linear infinite;
+                    }
+                    @keyframes yb-spin { to { transform: rotate(360deg); } }
+                    @media (prefers-reduced-motion: reduce) {
+                      .spinner { animation: none; }
+                    }
+                    .title { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+                    .sub { margin: 0; color: var(--yb-sub); font-size: 13px; }
+                    .fallback { margin: 18px 0 0; font-size: 12px; color: var(--yb-sub); }
+                    .fallback a { color: inherit; }
+                  </style>
                 </head>
-                <body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;padding:32px;color:#4b5563">
-                <p>正在前往统一身份认证，请稍候…</p>
-                <p><a id="fallback" href="#">如果没有自动跳转，请点这里</a></p>
-                <script>
-                (function () {
-                  var target = %s
-                  var done = false
-                  function go() {
-                    if (done) { return }
-                    done = true
-                    location.replace(target)
-                  }
-                  document.getElementById('fallback').setAttribute('href', target)
-                  %s
-                  setTimeout(go, 1600)
-                })()
-                </script>
+                <body>
+                  <div class="card">
+                    <div class="spinner" role="status" aria-label="正在跳转"></div>
+                    <p class="title">正在前往@@NAME@@</p>
+                    <p class="sub">正在跳转到统一身份认证，请稍候…</p>
+                    <p class="fallback">如果没有自动跳转，<a id="fallback" href="#">请点这里</a></p>
+                  </div>
+                  <script>
+                  (function () {
+                    var target = @@TARGET@@;
+                    var done = false;
+                    function go() {
+                      if (done) { return; }
+                      done = true;
+                      location.replace(target);
+                    }
+                    var link = document.getElementById('fallback');
+                    if (link) { link.setAttribute('href', target); }
+                    @@PREHEAT@@
+                    setTimeout(go, 1600);
+                  })();
+                  </script>
                 </body>
                 </html>
-                """.formatted(jsString(target), preheat);
+                """
+                .replace("@@NAME@@", name)
+                .replace("@@TARGET@@", jsString(target))
+                .replace("@@PREHEAT@@", preheat);
     }
 
     /** 把 URL 安全地放进 JS 字符串字面量（同时挡掉 </script> 之类的闭合注入）。 */
@@ -136,6 +214,13 @@ public final class TaruSsoHttpFacade {
         return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("<", "\\u003c").replace(">", "\\u003e")
                 .replace("&", "\\u0026").replace("\n", "").replace("\r", "") + "\"";
+    }
+
+    /** 展示名称来自管理员配置，进 HTML 前做转义。 */
+    private static String html(String value) {
+        return (value == null ? "" : value)
+                .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     public PluginHttpResponse registerOidc(PluginHttpRequest request) {
