@@ -113,55 +113,55 @@ async function continueLogin() {
           </template>
 
           <template v-else>
-          <FaAlert
-            v-if="!fromLoginPage"
-            title="请从登录页进入"
-            description="本页需要携带登录会话参数。请回到登录页点击「Eduroam 认证」入口，或直接访问登录页重新发起。"
-          />
-
-          <label class="eduroam-field">
-            <span class="eduroam-label">{{ model.accountSuffix ? '学号 / 工号' : 'Eduroam 账号' }}</span>
-            <FaInput
-              v-model="model.account"
-              class="w-full"
-              end-class="eduroam-account-addon"
-              aria-describedby="eduroam-account-hint"
-              :placeholder="model.accountPlaceholder"
-              :disabled="model.submitting"
-            >
-              <template v-if="model.accountSuffix && !model.account.includes('@')" #end>
-                <span class="eduroam-account-suffix" :title="model.accountSuffix">{{ model.accountSuffix }}</span>
-              </template>
-            </FaInput>
-            <small id="eduroam-account-hint" class="eduroam-help">{{ model.config?.accountHint }}</small>
-          </label>
-
-          <div class="eduroam-field">
-            <span class="eduroam-label">Eduroam 密码</span>
-            <FaInput
-              v-model="model.password"
-              type="password"
-              autocomplete="current-password"
-              class="w-full"
-              placeholder="校园网 / Eduroam 密码"
-              :disabled="model.submitting"
-              @keydown.enter="submit"
+            <FaAlert
+              v-if="!fromLoginPage"
+              title="请从登录页进入"
+              description="本页需要携带登录会话参数。请回到登录页点击「Eduroam 认证」入口，或直接访问登录页重新发起。"
             />
-            <small class="eduroam-help">校园网密码只用于本次认证，本站不会保存。</small>
-          </div>
 
-          <div class="eduroam-actions">
-            <FaButton variant="outline" @click="tutorialOpen = !tutorialOpen">
-              <FaIcon name="i-ri:question-line" />
-              {{ tutorialOpen ? '收起教程' : '查看教程' }}
-            </FaButton>
-            <FaButton :loading="model.submitting" :disabled="!fromLoginPage || model.submitting" @click="submit">
-              <FaIcon name="i-ri:login-box-line" />
-              验证校园账号
-            </FaButton>
-          </div>
+            <label class="eduroam-field">
+              <span class="eduroam-label">{{ model.accountSuffix ? '学号 / 工号' : 'Eduroam 账号' }}</span>
+              <FaInput
+                v-model="model.account"
+                class="w-full"
+                end-class="eduroam-account-addon"
+                aria-describedby="eduroam-account-hint"
+                :placeholder="model.accountPlaceholder"
+                :disabled="model.submitting"
+              >
+                <template v-if="model.accountSuffix && !model.account.includes('@')" #end>
+                  <span class="eduroam-account-suffix" :title="model.accountSuffix">{{ model.accountSuffix }}</span>
+                </template>
+              </FaInput>
+              <small id="eduroam-account-hint" class="eduroam-help">{{ model.config?.accountHint }}</small>
+            </label>
 
-          <pre v-if="tutorialOpen" class="eduroam-tutorial">{{ model.config?.tutorialMarkdown }}</pre>
+            <div class="eduroam-field">
+              <span class="eduroam-label">Eduroam 密码</span>
+              <FaInput
+                v-model="model.password"
+                type="password"
+                autocomplete="current-password"
+                class="w-full"
+                placeholder="校园网 / Eduroam 密码"
+                :disabled="model.submitting"
+                @keydown.enter="submit"
+              />
+              <small class="eduroam-help">校园网密码只用于本次认证，本站不会保存。</small>
+            </div>
+
+            <div class="eduroam-actions">
+              <FaButton variant="outline" @click="tutorialOpen = !tutorialOpen">
+                <FaIcon name="i-ri:question-line" />
+                {{ tutorialOpen ? '收起教程' : '查看教程' }}
+              </FaButton>
+              <FaButton :loading="model.submitting" :disabled="!fromLoginPage || model.submitting" @click="submit">
+                <FaIcon name="i-ri:login-box-line" />
+                验证校园账号
+              </FaButton>
+            </div>
+
+            <pre v-if="tutorialOpen" class="eduroam-tutorial">{{ model.config?.tutorialMarkdown }}</pre>
           </template>
           <FaAlert v-if="model.error" variant="destructive" title="操作未完成" :description="model.error" />
         </div>
