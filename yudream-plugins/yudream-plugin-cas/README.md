@@ -46,10 +46,12 @@
 ## 部署前必做
 
 1. 在宿主发布并安装 SPI `2.27.0`，部署含 `PluginExternalLoginProvider` 分发的宿主后端与登录页改动。
-2. 把本站回调地址登记到学校网信中心的 CAS service 白名单。回调必须是宿主统一端点：
+2. 把本站回调地址登记到学校网信中心的 CAS service 白名单。回调必须填**前端**回调路由（浏览器回跳到这里，页面再调后端完成登录）：
 
-   `https://你的站点/api/external-login/callback`
+   `https://你的站点/external-login/callback`
 
+   不要填 `https://你的站点/api/external-login/callback`：那是后端接口，浏览器直接回跳到接口上只会显示一段 JSON，既不完成登录也不会跳转。
+   也不要写成 `https://其他域名@你的站点/...` 这种带 `user@` 的形式：浏览器会把 `@` 前的内容当成用户名、实际访问 `@` 后面的域名（曾因此在新标签页首次打开时报 404）。
    CAS 会追加 `ticket` 与已编码的 `state`；OIDC 会带回 `code` 与 `state`。该域名目前探测到的白名单只有 `oa / jwxt / mail / i.taru.edu.cn`，未登记会被 CAS 拒绝。
 3. 管理员打开「CAS 单点登录 › 认证设置」，填写回调地址，选择协议并启用。角色需授予 `plugin:cas:manage` 才能看到菜单。
 

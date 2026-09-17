@@ -21,21 +21,6 @@ public final class DocValues {
         return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value));
     }
 
-    public static long number(Map<String, Object> document, String key, long defaultValue) {
-        Object value = document.get(key);
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        if (value == null || String.valueOf(value).isBlank()) {
-            return defaultValue;
-        }
-        try {
-            return Long.parseLong(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
-
     public static Map<String, Object> stripNulls(Map<String, Object> document) {
         LinkedHashMap<String, Object> cleaned = new LinkedHashMap<>();
         document.forEach((key, value) -> {

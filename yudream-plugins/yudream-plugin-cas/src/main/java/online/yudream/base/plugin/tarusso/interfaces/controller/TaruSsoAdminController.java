@@ -65,13 +65,4 @@ public final class TaruSsoAdminController {
     public PluginHttpResponse myProfile(PluginHttpRequest request) {
         return http.myProfile(request);
     }
-
-    /**
-     * 公开端点（permission 为空）：兜底模式的回跳中转。
-     * CAS 把 ticket 追加在固定 service 上回跳到这里，插件补回宿主 state 后 302 到宿主回调。
-     */
-    @PluginHttpEndpoint(method = "GET", path = "/public/relay")
-    public PluginHttpResponse relay(PluginHttpRequest request) {
-        return http.relay(request);
-    }
 }

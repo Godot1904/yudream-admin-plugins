@@ -58,15 +58,10 @@ public final class SettingsService {
         if (protocol == SsoProtocol.OIDC && (incoming.clientId() == null || incoming.clientId().isBlank())) {
             throw new IllegalArgumentException("OIDC 模式必须填写 client_id");
         }
-        SsoSettings candidate = incoming.toSettings(false);
-        if (candidate.relayStateMode() && protocol == SsoProtocol.CAS && !candidate.relayReady()) {
-            throw new IllegalArgumentException("兜底模式要求回调地址包含 " + SsoSettings.EXTERNAL_LOGIN_PREFIX
-                    + "（插件据此反推站点基址与中转地址）");
-        }
         if (clientSecret != null && !clientSecret.isBlank()) {
             secrets.put(clientSecret);
         }
-        return SsoSettingsDto.from(remember(repository.save(candidate)));
+        return SsoSettingsDto.from(remember(repository.save(incoming.toSettings(false))));
     }
 
     public SsoProtocolClient.ConnectivityResult test() {
@@ -86,8 +81,25 @@ public final class SettingsService {
             secrets.put(clientSecret);
         }
         if (!clientId.isBlank()) {
-            SsoSettings updated = settings.withProtocol(SsoProtocol.OIDC, clientId)
-                    .withClientSecretConfigured(secrets.configured());
+            SsoSettings updated = new SsoSettings(
+                    settings.enabled(),
+                    SsoProtocol.OIDC,
+                    settings.displayName(),
+                    settings.icon(),
+                    settings.casBaseUrl(),
+                    settings.loginPath(),
+                    settings.validatePath(),
+                    settings.oidcIssuer(),
+                    settings.oidcAuthorizePath(),
+                    settings.oidcTokenPath(),
+                    settings.oidcUserinfoPath(),
+                    settings.oidcJwksPath(),
+                    settings.oidcRegisterPath(),
+                    clientId,
+                    secrets.configured(),
+                    settings.scopes(),
+                    settings.callbackUrl()
+            );
             remember(repository.save(updated));
         } else {
             cache.set(null);

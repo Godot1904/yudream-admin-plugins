@@ -20,15 +20,6 @@ public final class SsoSettings {
     public static final String DEFAULT_DISPLAY_NAME = "塔里木大学统一身份认证";
     public static final String DEFAULT_ICON = "i-ri:graduation-cap-line";
 
-    /** state 承载方式：追加在 service 查询串上（默认，CAS 会原样带回）。 */
-    public static final String STATE_MODE_QUERY = "query";
-    /** state 承载方式：兜底。service 用插件的固定中转地址（不含查询串），回调时按最近一次记录补回 state。 */
-    public static final String STATE_MODE_RELAY = "relay";
-    /** 宿主第三方登录回调的固定前缀，用于从回调地址反推站点基址与宿主回调必须路径。 */
-    public static final String EXTERNAL_LOGIN_PREFIX = "/api/external-login";
-    /** 兜底中转端点（插件 code = cas，见 TaruSsoPlugin.CODE）。 */
-    public static final String RELAY_PATH = "/api/plugins/cas/public/relay";
-
     private final boolean enabled;
     private final SsoProtocol protocol;
     private final String displayName;
@@ -46,7 +37,6 @@ public final class SsoSettings {
     private final boolean clientSecretConfigured;
     private final String scopes;
     private final String callbackUrl;
-    private final String casStateMode;
 
     public SsoSettings(
             boolean enabled,
@@ -65,8 +55,7 @@ public final class SsoSettings {
             String clientId,
             boolean clientSecretConfigured,
             String scopes,
-            String callbackUrl,
-            String casStateMode
+            String callbackUrl
     ) {
         this.enabled = enabled;
         this.protocol = protocol == null ? SsoProtocol.CAS : protocol;
@@ -85,8 +74,6 @@ public final class SsoSettings {
         this.clientSecretConfigured = clientSecretConfigured;
         this.scopes = blankToDefault(scopes, DEFAULT_SCOPES);
         this.callbackUrl = trimToEmpty(callbackUrl);
-        this.casStateMode = STATE_MODE_RELAY.equalsIgnoreCase(trimToEmpty(casStateMode))
-                ? STATE_MODE_RELAY : STATE_MODE_QUERY;
     }
 
     public static SsoSettings defaults() {
@@ -107,19 +94,7 @@ public final class SsoSettings {
                 "",
                 false,
                 DEFAULT_SCOPES,
-                "",
-                STATE_MODE_QUERY
-        );
-    }
-
-    /**
-     * 只切换 state 承载方式：其余字段原样保留（设置页保存与就地切换都用它，避免逐位置构造串位）。
-     */
-    public SsoSettings withCasStateMode(String mode) {
-        return new SsoSettings(
-                enabled, protocol, displayName, icon, casBaseUrl, loginPath, validatePath,
-                oidcIssuer, oidcAuthorizePath, oidcTokenPath, oidcUserinfoPath, oidcJwksPath,
-                oidcRegisterPath, clientId, clientSecretConfigured, scopes, callbackUrl, mode
+                ""
         );
     }
 
@@ -127,15 +102,7 @@ public final class SsoSettings {
         return new SsoSettings(
                 enabled, protocol, displayName, icon, casBaseUrl, loginPath, validatePath,
                 oidcIssuer, oidcAuthorizePath, oidcTokenPath, oidcUserinfoPath, oidcJwksPath,
-                oidcRegisterPath, clientId, configured, scopes, callbackUrl, casStateMode
-        );
-    }
-
-    public SsoSettings withProtocol(SsoProtocol newProtocol, String newClientId) {
-        return new SsoSettings(
-                enabled, newProtocol, displayName, icon, casBaseUrl, loginPath, validatePath,
-                oidcIssuer, oidcAuthorizePath, oidcTokenPath, oidcUserinfoPath, oidcJwksPath,
-                oidcRegisterPath, newClientId, clientSecretConfigured, scopes, callbackUrl, casStateMode
+                oidcRegisterPath, clientId, configured, scopes, callbackUrl
         );
     }
 
@@ -189,47 +156,6 @@ public final class SsoSettings {
     public String casServiceUrl(String state) {
         String separator = callbackUrl.contains("?") ? "&" : "?";
         return callbackUrl + separator + "state=" + state;
-    }
-
-    /** 兜底模式的固定 service：插件公开中转端点，**不含任何查询串**（正是为了绕开 IdP 对 service 的限制）。 */
-    public String relayServiceUrl() {
-        String base = siteBaseUrl();
-        return base.isEmpty() ? "" : base + RELAY_PATH;
-    }
-
-    /**
-     * 兜底中转把请求换回宿主回调地址：追加 CAS 的 ticket 与本次尝试的宿主 state。
-     * 目标固定用宿主的通用回调 {@code /api/external-login/callback}——它同时接受 ticket 与 code 参数名，
-     * 因此即使管理员把回调地址填成了供应商专用回调，这里也能自愈。
-     */
-    public String relayForwardUrl(String providerCode, String platformType, String hostState, String ticket) {
-        String base = siteBaseUrl();
-        if (base.isEmpty()) {
-            return "";
-        }
-        StringBuilder url = new StringBuilder(base).append(EXTERNAL_LOGIN_PREFIX).append("/callback")
-                .append("?provider=").append(encode(providerCode))
-                .append("&type=").append(encode(platformType))
-                .append("&state=").append(encode(hostState));
-        if (ticket != null && !ticket.isBlank()) {
-            url.append("&ticket=").append(encode(ticket));
-        }
-        return url.toString();
-    }
-
-    /** 站点基址：从回调地址里截掉宿主第三方登录路径前缀得到。 */
-    public String siteBaseUrl() {
-        int index = callbackUrl.indexOf(EXTERNAL_LOGIN_PREFIX);
-        return index <= 0 ? "" : trimTrailingSlash(callbackUrl.substring(0, index));
-    }
-
-    /** 兜底模式是否可用（需要能从回调地址反推站点基址）。 */
-    public boolean relayReady() {
-        return !relayServiceUrl().isEmpty() && !callbackUrl.isBlank();
-    }
-
-    public boolean relayStateMode() {
-        return STATE_MODE_RELAY.equals(casStateMode);
     }
 
     public boolean enabled() {
@@ -298,14 +224,6 @@ public final class SsoSettings {
 
     public String callbackUrl() {
         return callbackUrl;
-    }
-
-    public String casStateMode() {
-        return casStateMode;
-    }
-
-    private static String encode(String value) {
-        return java.net.URLEncoder.encode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static String blankToDefault(String value, String defaultValue) {

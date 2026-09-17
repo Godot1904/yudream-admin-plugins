@@ -14,7 +14,6 @@ import online.yudream.base.plugin.tarusso.application.service.StudentInfoService
 import online.yudream.base.plugin.tarusso.application.service.TaruSsoLoginProvider;
 import online.yudream.base.plugin.tarusso.infrastructure.cas.CasProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.oidc.OidcProtocolClient;
-import online.yudream.base.plugin.tarusso.infrastructure.repository.RelayTicketDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.SsoSettingsDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentMappingDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfileDocumentRepository;
@@ -67,19 +66,17 @@ import online.yudream.base.plugin.tarusso.interfaces.http.TaruSsoHttpFacade;
 public final class TaruSsoPlugin implements YuDreamPlugin {
 
     public static final String CODE = "cas";
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = "1.0.7";
     public static final String MANAGE_PERMISSION = "plugin:cas:manage";
 
     @Override
     public void onEnable(PluginContext context) {
         ClientSecretStore secrets = new ClientSecretStore(context.secrets());
         SsoSettingsDocumentRepository repository = new SsoSettingsDocumentRepository(context.documents());
-        // 兜底模式（state 不进 service 查询串）的待回调记录仓储，由 CAS 客户端与中转端点共用。
-        RelayTicketDocumentRepository relayTickets = new RelayTicketDocumentRepository(context.documents());
         SettingsService settings = new SettingsService(
                 repository,
                 secrets,
-                new CasProtocolClient(relayTickets),
+                new CasProtocolClient(),
                 new OidcProtocolClient()
         );
         StudentInfoService studentInfo = new StudentInfoService(

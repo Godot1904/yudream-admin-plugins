@@ -7,7 +7,7 @@
     <!-- 独立单模块项目：不继承宿主或插件仓 parent，仅消费已安装到本地仓库的 SPI 契约 -->
     <groupId>online.yudream.plugins</groupId>
     <artifactId>yudream-plugin-cas</artifactId>
-    <version>1.1.0</version>
+    <version>1.0.7</version>
 
     <properties>
         <java.version>21</java.version>

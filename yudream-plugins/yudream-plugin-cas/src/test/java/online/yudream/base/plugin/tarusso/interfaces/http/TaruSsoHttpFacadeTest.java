@@ -7,12 +7,10 @@ import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
-import online.yudream.base.plugin.tarusso.domain.aggregate.RelayTicket;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
 import online.yudream.base.plugin.tarusso.domain.aggregate.StudentMapping;
 import online.yudream.base.plugin.tarusso.infrastructure.cas.CasProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.oidc.OidcProtocolClient;
-import online.yudream.base.plugin.tarusso.infrastructure.repository.RelayTicketDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.SsoSettingsDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentMappingDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfileDocumentRepository;
@@ -118,33 +116,6 @@ class TaruSsoHttpFacadeTest {
         assertEquals(404, env.facade.myProfile(loggedInRequest(Map.of("socialUid", List.of("404")))).status());
     }
 
-    @Test
-    void relayEndpointForwardsTicketWithPendingHostState() {
-        Env env = new Env();
-        env.settings.save(relayReady(), null);
-        env.relayTickets.save(RelayTicket.issue("host-state-1", "cas", System.currentTimeMillis()));
-
-        PluginHttpResponse response = env.facade.relay(request(Map.of("ticket", List.of("ST-42"))));
-
-        assertEquals(302, response.status());
-        assertEquals("https://site.example/api/external-login/callback"
-                + "?provider=cas&type=cas&state=host-state-1&ticket=ST-42", response.headers().get("Location"));
-        // 一次性：同一条记录不会被第二个 ticket 复用
-        assertEquals(400, env.facade.relay(request(Map.of("ticket", List.of("ST-43")))).status());
-    }
-
-    @Test
-    void relayEndpointRejectsMissingTicketAndStandardMode() {
-        Env env = new Env();
-        env.settings.save(relayReady(), null);
-        assertEquals(400, env.facade.relay(request(Map.of())).status());
-        assertEquals(400, env.facade.relay(request(Map.of("ticket", List.of("ST-1")))).status());
-
-        Env standard = new Env();
-        standard.settings.save(casReady(), null);
-        assertEquals(409, standard.facade.relay(request(Map.of("ticket", List.of("ST-1")))).status());
-    }
-
     @SuppressWarnings("unchecked")
     private static Map<String, Object> gate(TaruSsoHttpFacade facade) {
         PluginHttpResponse response = facade.gate();
@@ -179,29 +150,16 @@ class TaruSsoHttpFacadeTest {
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", SsoSettings.STATE_MODE_QUERY, false
-        );
-    }
-
-    /** 兜底模式（service 走插件固定中转地址）下的同一套设置。 */
-    private static SsoSettingsDto relayReady() {
-        SsoSettingsDto base = casReady();
-        return new SsoSettingsDto(
-                base.enabled(), base.protocol(), base.displayName(), base.icon(), base.casBaseUrl(),
-                base.loginPath(), base.validatePath(), base.oidcIssuer(), base.oidcAuthorizePath(),
-                base.oidcTokenPath(), base.oidcUserinfoPath(), base.oidcJwksPath(), base.oidcRegisterPath(),
-                base.clientId(), base.clientSecretConfigured(), base.scopes(), base.callbackUrl(),
-                SsoSettings.STATE_MODE_RELAY, base.ready()
+                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
         );
     }
 
     private static final class Env {
         final MemoryDocuments documents = new MemoryDocuments();
-        final RelayTicketDocumentRepository relayTickets = new RelayTicketDocumentRepository(documents);
         final SettingsService settings = new SettingsService(
                 new SsoSettingsDocumentRepository(documents),
                 new ClientSecretStore(new MemorySecrets()),
-                new CasProtocolClient(relayTickets),
+                new CasProtocolClient(),
                 new OidcProtocolClient()
         );
         final StudentInfoService studentInfo = new StudentInfoService(

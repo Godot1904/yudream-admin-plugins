@@ -8,7 +8,6 @@ import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
 import online.yudream.base.plugin.tarusso.infrastructure.cas.CasProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.oidc.OidcProtocolClient;
-import online.yudream.base.plugin.tarusso.infrastructure.repository.RelayTicketDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.SsoSettingsDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.secret.ClientSecretStore;
 import org.junit.jupiter.api.Test;
@@ -54,7 +53,7 @@ class TaruSsoLoginProviderTest {
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "client-1", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", SsoSettings.STATE_MODE_QUERY, false
+                "client-1", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
         );
         service.save(oidc, null);
         TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
@@ -85,7 +84,7 @@ class TaruSsoLoginProviderTest {
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", SsoSettings.STATE_MODE_QUERY, false
+                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
         );
     }
 
@@ -103,7 +102,7 @@ class TaruSsoLoginProviderTest {
         return new SettingsService(
                 new SsoSettingsDocumentRepository(documents),
                 store,
-                new CasProtocolClient(new RelayTicketDocumentRepository(documents)),
+                new CasProtocolClient(),
                 new OidcProtocolClient()
         );
     }

@@ -5,9 +5,6 @@ import online.yudream.base.plugin.spi.http.PluginHttpResponse;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
-import online.yudream.base.plugin.tarusso.bootstrap.TaruSsoPlugin;
-import online.yudream.base.plugin.tarusso.domain.aggregate.RelayTicket;
-import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
 import online.yudream.base.plugin.tarusso.domain.aggregate.StudentMapping;
 import online.yudream.base.plugin.tarusso.domain.service.SsoProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.support.JsonSupport;
@@ -18,7 +15,6 @@ import online.yudream.base.plugin.tarusso.interfaces.request.StudentMappingSaveR
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public final class TaruSsoHttpFacade {
 
@@ -55,7 +51,6 @@ public final class TaruSsoHttpFacade {
                 current.clientSecretConfigured(),
                 firstNonBlank(body.scopes(), current.scopes()),
                 firstNonBlank(body.callbackUrl(), current.callbackUrl()),
-                firstNonBlank(body.casStateMode(), current.casStateMode()),
                 false
         );
         return PluginHttpResponse.ok(settings.save(incoming, body.clientSecret()));
@@ -64,37 +59,6 @@ public final class TaruSsoHttpFacade {
     public PluginHttpResponse test() {
         SsoProtocolClient.ConnectivityResult result = settings.test();
         return PluginHttpResponse.ok(Map.of("ok", result.ok(), "message", result.message()));
-    }
-
-    /**
-     * 兜底中转端点（公开、无权限注解）：CAS 把 ticket 追加在固定 service 上回跳到这里。
-     *
-     * <p>这里只做一件事：把「最近一次待回调记录」里的宿主 state 补回来，302 到宿主回调
-     * {@code /api/external-login/callback}。真正的票据校验与账号绑定仍由宿主回调触发
-     * {@code exchange} 完成——中转不签发任何会话。
-     *
-     * <p>服务端渲染不了友好页面时用可诊断的 JSON 错误，方便管理员对照日志排查。
-     */
-    public PluginHttpResponse relay(PluginHttpRequest request) {
-        String ticket = queryParam(request, "ticket");
-        if (ticket == null) {
-            return PluginHttpResponse.rawJson(400, Map.of("message",
-                    "缺少 ticket 参数：请确认 CAS 登录地址的 service 指向本端点 " + SsoSettings.RELAY_PATH));
-        }
-        SsoSettings current = settings.current();
-        if (!current.relayStateMode()) {
-            return PluginHttpResponse.rawJson(409, Map.of("message",
-                    "当前不是兜底模式：service 应直接指向本站回调地址，无需经过本端点"));
-        }
-        String platformType = current.protocol().typeCode();
-        Optional<String> target = settings.client(current.protocol())
-                .relayForwardUrl(current, TaruSsoPlugin.CODE, platformType, ticket);
-        if (target.isEmpty()) {
-            return PluginHttpResponse.rawJson(400, Map.of("message",
-                    "没有找到待回调的登录尝试（可能已消费或超过 "
-                            + (RelayTicket.TTL_MILLIS / 60_000) + " 分钟），请重新发起一次登录"));
-        }
-        return new PluginHttpResponse(302, Map.of("Location", target.get()), null, "");
     }
 
     public PluginHttpResponse registerOidc(PluginHttpRequest request) {
