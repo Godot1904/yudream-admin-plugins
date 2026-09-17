@@ -46,38 +46,43 @@ onMounted(model.load)
 
     <FaCard
       class="mt-4"
-      title="域名配置"
-      description="对齐原 auth-eduroam 的 EDUROAM_HOST 与 EDUROAM_STORE_HOST：认证域用于登录上游；本站邮箱域只决定本插件的记录口径，不改动站点账号规则。"
+      title="学校账号配置"
+      description="统一配置学校的 Eduroam 账号后缀，用户登录时只需填写学号或工号。"
     >
       <div class="eduroam-grid">
         <label class="eduroam-field">
-          <span class="eduroam-label">Eduroam 认证域</span>
-          <FaInput v-model="model.form.eduDomain" class="w-full" placeholder="例如 example.edu.cn" />
+          <span class="eduroam-label">学校账号后缀（认证域）</span>
+          <FaInput v-model="model.form.eduDomain" class="w-full" placeholder="例如 @xx.edu.cn" />
           <small class="eduroam-help">
-            填写后学生只需输入学号，系统自动补 @域名，并拒绝其他域名的账号；留空则要求填写完整账号。
+            支持填写 @xx.edu.cn 或 xx.edu.cn。保存后登录框自动显示该后缀，用户无需再次输入；仅允许该学校域名的账号登录。
+          </small>
+          <small class="eduroam-help">
+            例如配置 @xx.edu.cn 后，用户填写 20260001，实际认证账号为 20260001@xx.edu.cn。
           </small>
         </label>
         <label class="eduroam-field">
           <span class="eduroam-label">本站邮箱域（可选）</span>
           <FaInput v-model="model.form.storeDomain" class="w-full" placeholder="例如 mail.example.edu.cn" />
           <small class="eduroam-help">
-            学校无线域与邮箱域不同时填写，用来把认证账号映射成本站邮箱。它只影响本插件：登录账号按该域名登记与展示，并据此在账号列表里标注该邮箱是否已有站内账号；留空则与认证域一致。本站不会因此自动注册或自动绑定账号。
+            校园认证通过后，按「学号 + 此邮箱后缀」生成本站账号；不存在时要求用户设置新的本站密码并自动创建，已有账号不会覆盖密码。留空使用认证域。首次创建后需用新密码登录一次完成绑定。
           </small>
         </label>
       </div>
       <FaAlert
         v-if="!model.form.eduDomain"
         class="mt-3"
-        title="当前不限成员院校"
-        description="未填写认证域时，任何能通过 Eduroam 认证的账号都可以登录。只想允许本校成员时请填写认证域。"
+        title="尚未配置学校账号后缀"
+        description="留空时不限成员院校，用户需要输入完整的 学号@学校域名；填写上方后缀即可省去这一步。"
       />
     </FaCard>
 
     <FaCard class="mt-4" title="上游认证服务" description="登录时向该地址提交账号密码并解析返回结果。">
       <label class="eduroam-field">
         <span class="eduroam-label">认证服务地址</span>
-        <FaInput v-model="model.form.verifyEndpoint" class="w-full" placeholder="https://.../cgi-bin/eduroam-test.cgi" />
-        <small class="eduroam-help">必须是 http(s) 绝对地址；留空或非法时回落到内置默认地址。</small>
+        <FaInput v-model="model.form.verifyEndpoint" class="w-full" placeholder="https://analysis.eduroam.edu.cn/checkc/pkudetection" />
+        <small class="eduroam-help">
+          默认使用北京大学 Eduroam 探测点（MSCHAPv2）；留空或填写旧默认地址会自动使用新站点。其他自定义地址须兼容原有认证服务。
+        </small>
       </label>
       <div class="eduroam-grid three mt-3">
         <label class="eduroam-field">
@@ -105,7 +110,7 @@ onMounted(model.load)
     <FaAlert
       class="mt-4"
       title="安全说明"
-      description="密码只在认证请求期间使用，不写入数据库与审计记录；登录交接票据一次性且 5 分钟内有效，并必须与登录会话匹配，重放无效。"
+      description="校园网密码只用于上游认证；新设置的本站密码交由宿主加密保存，插件不保存两种密码。认证票据一次性且 5 分钟内有效，开户前重新检查账号封禁与邮箱配置。"
     />
   </FaPageMain>
 </template>

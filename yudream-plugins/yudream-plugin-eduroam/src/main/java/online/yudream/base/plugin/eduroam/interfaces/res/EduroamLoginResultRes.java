@@ -9,6 +9,8 @@ public record EduroamLoginResultRes(
         String ticket,
         long expiresAt,
         String reasonCode,
-        String message
+        String message,
+        boolean registrationRequired,
+        boolean accountCreated
 ) {
 }

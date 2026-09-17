@@ -339,6 +339,28 @@ class EduroamAppServiceTest {
     }
 
     @Test
+    void savedSchoolSuffixImmediatelyAppliesToPublicConfigAndLogin() {
+        assertEquals("example.edu.cn", app.publicConfig().eduDomain());
+        app.saveSettings(new EduroamSettingsSaveCmd(null, " @School.EDU.CN ", "", null, null, null, null, null));
+        assertEquals("school.edu.cn", settingsRepository.get().eduDomain());
+        assertEquals("school.edu.cn", app.publicConfig().eduDomain());
+        assertTrue(app.publicConfig().accountHint().contains("@school.edu.cn"));
+
+        EduroamLoginResultDTO bare = app.authenticate(new EduroamLoginCmd("20260001", "s3cret", STATE), IP);
+        EduroamLoginResultDTO full = app.authenticate(new EduroamLoginCmd("20260001@school.edu.cn", "s3cret", STATE), IP);
+        assertTrue(bare.success());
+        assertTrue(full.success());
+        assertEquals("20260001@school.edu.cn", bare.identity());
+        assertEquals(bare.identity(), full.identity());
+        assertEquals(List.of(bare.identity(), bare.identity()), probe.identities());
+        assertEquals(1, accounts.count(), "简写与完整账号必须归入同一个登录账号");
+
+        assertThrows(IllegalArgumentException.class, () -> app.authenticate(
+                new EduroamLoginCmd("20260001@other.edu.cn", "s3cret", STATE), IP));
+        assertEquals(2, probe.identities().size(), "不同学校的账号应在发送凭据前拒绝");
+    }
+
+    @Test
     void seedDefaultsWritesDocumentOnlyOnce() {
         FakeSettingsRepository empty = new FakeSettingsRepository();
         EduroamAppService fresh = new EduroamAppService(accounts, attempts, tickets, empty, probe, localUsers,

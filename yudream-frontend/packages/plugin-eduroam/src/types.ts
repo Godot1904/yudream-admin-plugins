@@ -18,6 +18,8 @@ export interface EduroamLoginResult {
   expiresAt: number
   reasonCode: string
   message: string
+  registrationRequired: boolean
+  accountCreated: boolean
 }
 
 /**

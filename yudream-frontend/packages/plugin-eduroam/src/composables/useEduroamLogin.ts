@@ -21,9 +21,15 @@ export function useEduroamLogin(sdk: YuDreamPluginSdk) {
   const error = ref('')
   const account = ref('')
   const password = ref('')
+  const sitePassword = ref('')
+  const confirmPassword = ref('')
   const result = ref<EduroamLoginResult | null>(null)
 
   const enabled = computed(() => Boolean(config.value?.enabled))
+  const accountSuffix = computed(() => config.value?.eduDomain ? `@${config.value.eduDomain}` : '')
+  const accountPlaceholder = computed(() => accountSuffix.value ? '学号 / 工号' : '学号@学校域名')
+  const needsRegistration = computed(() => Boolean(result.value?.success
+    && result.value.registrationRequired && !sdk.account.userId))
 
   async function loadConfig() {
     loading.value = true
@@ -43,6 +49,7 @@ export function useEduroamLogin(sdk: YuDreamPluginSdk) {
    * 提交凭据。成功返回带票据的结果（调用方随即跳回宿主回调端点），失败返回 null 并展示原因。
    */
   async function submit(state: string): Promise<EduroamLoginResult | null> {
+    if (submitting.value) return null
     const name = account.value.trim()
     if (!name) {
       error.value = '请填写 Eduroam 账号'
@@ -79,15 +86,48 @@ export function useEduroamLogin(sdk: YuDreamPluginSdk) {
     }
   }
 
+  async function register(state: string): Promise<EduroamLoginResult | null> {
+    if (submitting.value || !needsRegistration.value || !result.value) return null
+    if (sitePassword.value.trim().length === 0 || sitePassword.value.length < 8
+      || new TextEncoder().encode(sitePassword.value).length > 72) {
+      error.value = '本站密码至少 8 个字符，且 UTF-8 编码不能超过 72 字节'
+      return null
+    }
+    if (sitePassword.value !== confirmPassword.value) {
+      error.value = '两次输入的本站密码不一致'
+      return null
+    }
+    submitting.value = true
+    error.value = ''
+    try {
+      const payload = await api.register(result.value.ticket, state, sitePassword.value, confirmPassword.value)
+      result.value = payload
+      return payload
+    }
+    catch (cause) {
+      // 写入失败时票据可能已核销，也可能已创建成功；重新认证后由服务端检查账号状态。
+      result.value = null
+      error.value = `${errorMessage(cause, '创建账号未完成')}。请重新进行校园认证后继续。`
+      return null
+    }
+    finally {
+      sitePassword.value = ''
+      confirmPassword.value = ''
+      submitting.value = false
+    }
+  }
+
   function reset() {
     result.value = null
     error.value = ''
     password.value = ''
+    sitePassword.value = ''
+    confirmPassword.value = ''
   }
 
   return reactive({
-    loading, submitting, config, error, account, password, result,
-    enabled, loadConfig, submit, reset,
+    loading, submitting, config, error, account, password, sitePassword, confirmPassword, result,
+    enabled, accountSuffix, accountPlaceholder, needsRegistration, loadConfig, submit, register, reset,
   })
 }
 

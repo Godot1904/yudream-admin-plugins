@@ -27,6 +27,8 @@ export function createEduroamApi(sdk: YuDreamPluginSdk) {
     publicConfig: () => http.get<EduroamPublicConfig>('/public/config'),
     login: (account: string, password: string, state: string) =>
       http.post<EduroamLoginResult>('/public/login', { account, password, state }),
+    register: (ticket: string, state: string, password: string, confirmPassword: string) =>
+      http.post<EduroamLoginResult>('/public/register', { ticket, state, password, confirmPassword }),
 
     // ---- 管理端：登录账号台账 ----
     accounts: (status: string, keyword: string, page: number, size: number) =>
