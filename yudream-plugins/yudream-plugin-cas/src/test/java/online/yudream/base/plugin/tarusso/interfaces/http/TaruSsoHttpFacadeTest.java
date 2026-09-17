@@ -4,7 +4,9 @@ import online.yudream.base.plugin.spi.http.PluginHttpRequest;
 import online.yudream.base.plugin.spi.http.PluginHttpResponse;
 import online.yudream.base.plugin.spi.system.secret.PluginSecretStore;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
+import online.yudream.base.plugin.spi.system.user.PluginUserService;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
+import online.yudream.base.plugin.tarusso.application.service.BindingQueryService;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
@@ -168,6 +170,65 @@ class TaruSsoHttpFacadeTest {
         assertTrue(html.contains("location.replace"), html);
     }
 
+    @Test
+    void studentsPageCarriesBoundLocalAccount() {
+        Env env = new Env();
+        env.studentInfo.record(identity("20230101", "张三", Map.of("cn", "张三")),
+                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
+        env.users.bound.put("cas|cas|20230101", new online.yudream.base.plugin.spi.system.user.PluginUserProfile(
+                357806992028471296L, "godot", "Godot", "g@example.com", "13900000000", null, null, "NORMAL"));
+
+        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
+        Map<String, Object> binding = bindingOf(firstItem(page));
+        assertEquals(true, binding.get("available"));
+        assertEquals(true, binding.get("bound"));
+        assertEquals("godot", binding.get("username"));
+        // Java Long 进 JSON 必须是字符串
+        assertEquals("357806992028471296", binding.get("userId"));
+
+        Map<String, Object> detail = body(env.facade.studentDetail(request(Map.of("socialUid", List.of("20230101")))));
+        assertEquals("godot", bindingOf(detail).get("username"));
+    }
+
+    @Test
+    void studentsPageShowsUnboundAccount() {
+        Env env = new Env();
+        env.studentInfo.record(identity("20230102", "李四", Map.of("cn", "李四")),
+                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
+
+        Map<String, Object> binding = bindingOf(firstItem(body(
+                env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))))));
+
+        assertEquals(true, binding.get("available"));
+        assertEquals(false, binding.get("bound"));
+    }
+
+    @Test
+    void studentsPageDegradesWhenHostDoesNotSupportBindingLookup() {
+        Env env = new Env();
+        env.users.unsupported = true;
+        env.studentInfo.record(identity("20230103", "王五", Map.of("cn", "王五")),
+                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
+
+        // 宿主不支持查询时列表仍要正常返回，只在绑定字段上降级
+        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
+        assertEquals(1L, page.get("total"));
+        Map<String, Object> binding = bindingOf(firstItem(page));
+        assertEquals(false, binding.get("available"));
+        assertEquals(false, binding.get("bound"));
+        assertTrue(String.valueOf(binding.get("message")).contains("宿主版本不支持"), String.valueOf(binding.get("message")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> firstItem(Map<String, Object> page) {
+        return ((List<Map<String, Object>>) page.get("items")).get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> bindingOf(Map<String, Object> item) {
+        return (Map<String, Object>) item.get("binding");
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> gate(TaruSsoHttpFacade facade) {
         PluginHttpResponse response = facade.gate();
@@ -220,6 +281,7 @@ class TaruSsoHttpFacadeTest {
 
     private static final class Env {
         final MemoryDocuments documents = new MemoryDocuments();
+        final FakeUsers users = new FakeUsers();
         final SettingsService settings = new SettingsService(
                 new SsoSettingsDocumentRepository(documents),
                 new ClientSecretStore(new MemorySecrets()),
@@ -228,9 +290,41 @@ class TaruSsoHttpFacadeTest {
         );
         final StudentInfoService studentInfo = new StudentInfoService(
                 new StudentMappingDocumentRepository(documents),
-                new StudentProfileDocumentRepository(documents)
+                new StudentProfileDocumentRepository(documents),
+                new BindingQueryService(users.service(), "cas")
         );
         final TaruSsoHttpFacade facade = new TaruSsoHttpFacade(settings, studentInfo);
+    }
+
+    /** 宿主用户服务的可编程替身：只实现本测试用到的 findByExternalIdentity。 */
+    private static final class FakeUsers {
+        final Map<String, online.yudream.base.plugin.spi.system.user.PluginUserProfile> bound = new ConcurrentHashMap<>();
+        boolean unsupported;
+
+        PluginUserService service() {
+            return (PluginUserService) java.lang.reflect.Proxy.newProxyInstance(
+                    TaruSsoHttpFacadeTest.class.getClassLoader(),
+                    new Class<?>[]{PluginUserService.class},
+                    (proxy, method, args) -> {
+                        if ("findByExternalIdentity".equals(method.getName())) {
+                            if (unsupported) {
+                                throw new UnsupportedOperationException("宿主不支持查询外部账号绑定");
+                            }
+                            String key = args[0] + "|" + args[1] + "|" + args[2];
+                            return java.util.Optional.ofNullable(bound.get(key));
+                        }
+                        if ("toString".equals(method.getName())) {
+                            return "FakePluginUserService";
+                        }
+                        if ("hashCode".equals(method.getName())) {
+                            return System.identityHashCode(proxy);
+                        }
+                        if ("equals".equals(method.getName())) {
+                            return proxy == args[0];
+                        }
+                        throw new UnsupportedOperationException(method.getName());
+                    });
+        }
     }
 
     private static final class MemoryDocuments implements PluginDocumentStore {

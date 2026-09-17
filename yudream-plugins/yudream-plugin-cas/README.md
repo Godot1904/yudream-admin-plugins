@@ -3,9 +3,21 @@
 独立插件项目，不并入 `yudream-admin-plugins` 仓库，也不做 Git 提交。约定对齐插件仓 `AGENTS.md` 与宿主仓 SPI。
 
 - 插件 code：`cas`
-- 版本：`1.0.5`（v1.0.3 基线保留在 `../yudream-plugin-cas/`，已交付网信中心，不再改动）
-- 依赖宿主 SPI：`2.27.0`（`PluginExternalLoginProvider`、`PluginGlobalWidget`）
+- 版本：`1.1.0`（v1.0.3 基线保留在 `../yudream-plugin-cas/`，已交付网信中心，不再改动）
+- 依赖宿主 SPI：`2.29.0`（`PluginExternalLoginProvider`、`PluginGlobalWidget`、`PluginUserService.findByExternalIdentity`）
 - 登录入口由宿主登录页 Tabs 渲染，插件贡献协议实现、管理设置页、学生信息页、绑定门禁挂件与学生档案预填挂件
+
+## v1.1.0 新增
+
+1. **管理端查看绑定信息**：「学生信息」页列表新增「绑定账号」列，详情抽屉新增绑定信息块（本站账号 / 用户 ID / 昵称 / 邮箱 / 手机 / 账号状态），管理员可直接核对「学工号 → 本站账号」。
+   - 数据来源：宿主 SPI 2.29.0 的 `PluginUserService.findByExternalIdentity(providerCode, platformType, socialUid)`，即宿主 external account 表里 (登录通道, 协议, 学工号) 命中的那条绑定；`platformType` 取学生档案自身记录的协议（CAS/OIDC），因此管理员中途切换协议后历史绑定仍能查到。
+   - 降级：宿主版本不支持该能力（默认实现抛 `UnsupportedOperationException`）、宿主未提供用户服务、或绑定指向的用户已不存在时，只把该列/该块显示为「无法查询」并附原因，列表、搜索、其他字段与预填功能照常可用（fail-open）。
+   - 只能看「学工号 → 本站账号」这一方向：SPI 没有「按本站账号列绑定」的契约，反向列表需宿主先发布对应SPI。
+2. **映射字段对照说明**：「认证设置 → 学生信息映射」新增字段对照，直接对齐学生档案插件的四个字段：
+   - `姓名` ← 姓名字段键（留空自动探测 `name` / `cn` / `displayName`）
+   - `学号` ← 认证中心返回的账号（CAS 的 `<cas:user>`），无需配置
+   - `学院` / `班级` ← 对应字段键；认证中心未返回该属性时留空，由成员在预填表单里补填
+   - `专业` / `年级` ← 仅归档到「学生信息」页，学生档案插件不使用
 
 ## v1.0.5 新增
 
@@ -45,7 +57,7 @@
 
 ## 部署前必做
 
-1. 在宿主发布并安装 SPI `2.27.0`，部署含 `PluginExternalLoginProvider` 分发的宿主后端与登录页改动。
+1. 在宿主发布并安装 SPI `2.29.0`，部署含 `PluginExternalLoginProvider` 分发、`AuthEventListener` 与 `PluginUserService.findByExternalIdentity` 的宿主后端与登录页改动。
 2. 把本站回调地址登记到学校网信中心的 CAS service 白名单。回调必须填**前端**回调路由（浏览器回跳到这里，页面再调后端完成登录）：
 
    `https://你的站点/external-login/callback`
@@ -85,7 +97,7 @@ META-INF/yudream-plugin/frontend/cas/manifest.json
 ```
 bootstrap/        插件入口，注册扩展、管理端点与全局挂件
 domain/           设置/学生映射/学生档案聚合、协议枚举、仓储接口
-application/      设置用例、学生信息用例、PluginExternalLoginProvider 实现
+application/      设置用例、学生信息用例（含绑定查询）、PluginExternalLoginProvider 实现
 infrastructure/   文档存储、密钥库、CAS XML、OIDC JWT
 interfaces/       管理端 HTTP + 公开门禁/预填端点
 frontend/         Vite remote：设置页、学生信息页、Gate 绑定门禁挂件、Prefill 档案预填挂件

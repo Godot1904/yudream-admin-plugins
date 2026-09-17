@@ -41,6 +41,23 @@ export interface StudentMapping {
   classKey: string
 }
 
+/**
+ * 该外部账号在本站的绑定查询结果（宿主 SPI 2.29.0 findByExternalIdentity）。
+ * available=false 表示宿主不支持查询或查询失败，此时 message 说明原因，页面按「无法查询」降级展示。
+ */
+export interface ExternalBinding {
+  available: boolean
+  bound: boolean
+  message?: string
+  userId?: string
+  username?: string
+  nickname?: string
+  email?: string
+  phone?: string
+  avatar?: string
+  status?: string
+}
+
 /** CAS/OIDC 登录时 upsert 的学生档案。 */
 export interface StudentProfile {
   socialUid: string
@@ -56,6 +73,8 @@ export interface StudentProfile {
   firstSeenAt: number
   lastSeenAt: number
   loginCount: number
+  /** 该学工号绑定的本站账号（管理端列表/详情附加）。 */
+  binding?: ExternalBinding
 }
 
 export interface StudentPage {

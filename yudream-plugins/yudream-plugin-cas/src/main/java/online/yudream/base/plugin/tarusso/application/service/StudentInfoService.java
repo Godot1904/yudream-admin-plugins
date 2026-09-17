@@ -10,6 +10,7 @@ import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfi
 import online.yudream.base.plugin.tarusso.infrastructure.support.JsonSupport;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,14 +31,25 @@ public final class StudentInfoService {
 
     private final StudentMappingRepository mappings;
     private final StudentProfileDocumentRepository profiles;
+    /** 绑定查询可为空（宿主未提供用户服务时），只影响管理端「绑定账号」信息。 */
+    private final BindingQueryService bindings;
 
     public StudentInfoService(StudentMappingRepository mappings, StudentProfileRepository profiles) {
+        this(mappings, profiles, null);
+    }
+
+    public StudentInfoService(
+            StudentMappingRepository mappings,
+            StudentProfileRepository profiles,
+            BindingQueryService bindings
+    ) {
         this.mappings = mappings;
         // 搜索能力是文档仓库实现细节，接口不暴露全量扫描
         if (!(profiles instanceof StudentProfileDocumentRepository documentRepository)) {
             throw new IllegalArgumentException("学生档案仓库必须基于文档存储实现");
         }
         this.profiles = documentRepository;
+        this.bindings = bindings;
     }
 
     public StudentMapping mapping() {
@@ -93,7 +105,7 @@ public final class StudentInfoService {
             total = profiles.count();
         }
         return Map.of(
-                "items", items.stream().map(StudentInfoService::toMap).toList(),
+                "items", attachBindings(items.stream().map(StudentInfoService::toMap).toList()),
                 "total", total,
                 "page", Math.max(page, 1),
                 "size", Math.max(size, 1)
@@ -101,7 +113,7 @@ public final class StudentInfoService {
     }
 
     public Optional<Map<String, Object>> detail(String socialUid) {
-        return profiles.find(socialUid).map(StudentInfoService::toMap);
+        return profiles.find(socialUid).map(profile -> attachBinding(profile, toMap(profile)));
     }
 
     /**
@@ -125,6 +137,40 @@ public final class StudentInfoService {
 
     private static Map<String, Object> toMap(StudentProfile profile) {
         return profile.toMap();
+    }
+
+    private List<Map<String, Object>> attachBindings(List<Map<String, Object>> items) {
+        if (bindings == null) {
+            return items;
+        }
+        for (Map<String, Object> item : items) {
+            item.put("binding", bindings.lookup(platformType(item.get("protocol")), stringOf(item.get("socialUid"))));
+        }
+        return items;
+    }
+
+    private Map<String, Object> attachBinding(StudentProfile profile, Map<String, Object> view) {
+        if (bindings != null) {
+            view.put("binding", bindings.lookup(platformTypeOf(profile), profile.socialUid()));
+        }
+        return view;
+    }
+
+    /**
+     * 绑定查询的 platformType = 宿主登记该绑定时使用的协议类型码。
+     * 档案按登录当时的协议存储（CAS/OIDC），因此优先用档案自身的协议，避免管理员中途切换协议后查不到历史绑定。
+     */
+    private static String platformTypeOf(StudentProfile profile) {
+        return platformType(profile.protocol());
+    }
+
+    private static String platformType(Object protocol) {
+        String value = stringOf(protocol);
+        return value.isBlank() ? SsoProtocol.CAS.typeCode() : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String stringOf(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 
     /**

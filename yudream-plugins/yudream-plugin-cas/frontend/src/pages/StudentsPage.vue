@@ -25,6 +25,18 @@ const detail = ref<StudentProfile | null>(null)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
 
+/** 本页绑定统计：已绑定数量；宿主不支持查询时不展示统计，避免误导。 */
+const boundCount = computed(() => items.value.filter(row => row.binding?.bound).length)
+const bindingQueryable = computed(() => items.value.some(row => row.binding?.available))
+
+function bindingLabel(row: StudentProfile) {
+  const binding = row.binding
+  if (binding?.bound) {
+    return binding.username || binding.nickname || binding.userId || '已绑定'
+  }
+  return ''
+}
+
 const rawAttributesJson = computed(() => {
   if (!detail.value?.rawAttributes) {
     return ''
@@ -109,7 +121,7 @@ onMounted(load)
 
 <template>
   <section class="tsu-page">
-    <FaPageHeader title="学生信息" description="成员通过 CAS / OIDC 登录后自动归档的认证属性；字段映射可在「认证设置」里调整。">
+    <FaPageHeader title="学生信息" description="成员通过 CAS / OIDC 登录后自动归档的认证属性，并显示每个学工号绑定的本站账号；字段映射可在「认证设置」里调整。">
       <FaButton variant="outline" :loading="loading" @click="load">
         <FaIcon name="i-ri:refresh-line" />
         刷新
@@ -142,6 +154,7 @@ onMounted(load)
             清除
           </FaButton>
           <span class="tsu-field-hint">共 {{ total }} 条{{ searchApplied ? `，关键词「${searchApplied}」` : '' }}</span>
+          <span v-if="bindingQueryable" class="tsu-field-hint">本页已绑定 {{ boundCount }} / {{ items.length }}</span>
         </form>
 
         <div class="tsu-table-wrap">
@@ -149,6 +162,7 @@ onMounted(load)
             <thead>
               <tr>
                 <th>学工号</th>
+                <th>绑定账号</th>
                 <th>姓名</th>
                 <th>学院</th>
                 <th>专业</th>
@@ -161,17 +175,22 @@ onMounted(load)
             </thead>
             <tbody>
               <tr v-if="loading && items.length === 0">
-                <td colspan="9" class="tsu-table-empty">
+                <td colspan="10" class="tsu-table-empty">
                   加载中…
                 </td>
               </tr>
               <tr v-else-if="items.length === 0">
-                <td colspan="9" class="tsu-table-empty">
+                <td colspan="10" class="tsu-table-empty">
                   暂无数据：成员通过 CAS 登录一次后，认证属性会自动出现在这里。
                 </td>
               </tr>
               <tr v-for="row in items" v-else :key="row.socialUid">
                 <td class="tsu-table-mono">{{ row.socialUid }}</td>
+                <td>
+                  <FaTag v-if="row.binding?.bound">{{ bindingLabel(row) }}</FaTag>
+                  <span v-else-if="row.binding && !row.binding.available" class="tsu-table-time" :title="row.binding.message || ''">无法查询</span>
+                  <span v-else class="tsu-table-time">未绑定</span>
+                </td>
                 <td>{{ row.name || '—' }}</td>
                 <td>{{ row.dept || '—' }}</td>
                 <td>{{ row.major || '—' }}</td>
@@ -231,6 +250,31 @@ onMounted(load)
           <dt>最近登录</dt>
           <dd class="tsu-table-time">{{ formatTime(detail.lastSeenAt) }}</dd>
         </dl>
+        <div class="tsu-raw">
+          <p class="tsu-field-hint">
+            本站账号绑定：宿主 external account 表里 (登录通道, 协议, 学工号) 命中的那条绑定记录。
+          </p>
+          <dl v-if="detail.binding?.bound" class="tsu-detail-grid">
+            <dt>本站账号</dt>
+            <dd class="tsu-table-mono">{{ detail.binding.username || '—' }}</dd>
+            <dt>用户 ID</dt>
+            <dd class="tsu-table-mono">{{ detail.binding.userId || '—' }}</dd>
+            <dt>昵称</dt>
+            <dd>{{ detail.binding.nickname || '—' }}</dd>
+            <dt>邮箱</dt>
+            <dd>{{ detail.binding.email || '—' }}</dd>
+            <dt>手机</dt>
+            <dd>{{ detail.binding.phone || '—' }}</dd>
+            <dt>账号状态</dt>
+            <dd>{{ detail.binding.status || '—' }}</dd>
+          </dl>
+          <p v-else-if="detail.binding && !detail.binding.available" class="tsu-field-hint tsu-field-hint--danger">
+            {{ detail.binding.message || '宿主不支持查询绑定信息' }}
+          </p>
+          <p v-else class="tsu-table-empty">
+            该学工号尚未绑定本站账号。
+          </p>
+        </div>
         <div class="tsu-raw">
           <p class="tsu-field-hint">
             认证中心返回的原始属性。若上方字段为空，可在此核对实际键名后到「认证设置 → 学生信息映射」指定对应键。

@@ -345,7 +345,7 @@ onMounted(() => {
           </p>
         </FaCard>
 
-        <FaCard title="访问控制与学生信息映射" description="登录时把认证属性归档为学生信息（可在「学生信息」页查看）；绑定门禁开启后，未绑定统一身份认证的成员会被引导完成绑定。" content-class="tsu-card-content">
+        <FaCard title="访问控制与学生信息映射" description="登录时把认证属性归档为学生信息（可在「学生信息」页查看，含每个学工号绑定的本站账号）；绑定门禁开启后，未绑定统一身份认证的成员会被引导完成绑定。" content-class="tsu-card-content">
           <div class="tsu-switch-row">
             <FaSwitch v-model="mapping.requireBinding" />
             <div class="tsu-switch-copy">
@@ -369,6 +369,22 @@ onMounted(() => {
             <FaLabel label="班级字段键" class="tsu-field">
               <FaInput v-model="mapping.classKey" class="w-full" maxlength="60" placeholder="留空自动探测（className / class / clazz …）" :disabled="mappingLoading" />
             </FaLabel>
+          </div>
+          <div class="tsu-mapping-guide">
+            <p class="tsu-field-hint">
+              <strong>字段对照</strong>（学生档案插件的四个字段：姓名 / 学号 / 班级 / 学院，预填表单见「我的档案」）：
+            </p>
+            <ul class="tsu-mapping-guide__list">
+              <li><code>姓名</code> ← 姓名字段键。留空即自动探测（<code>name</code> / <code>cn</code> / <code>displayName</code>），学校返回 <code>cn</code> 时无需填写。</li>
+              <li><code>学号</code> ← 认证中心返回的账号（CAS 的 <code>&lt;cas:user&gt;</code>），<strong>不需要配置</strong>；学生档案、绑定记录都以它为主键。</li>
+              <li><code>学院</code> ← 学院字段键。认证中心未返回学院字段时留空，由成员在预填表单里补填。</li>
+              <li><code>班级</code> ← 班级字段键。同上，未返回时留空。</li>
+              <li><code>专业 / 年级</code> ← 只归档到「学生信息」页，学生档案插件不使用。</li>
+            </ul>
+            <p class="tsu-field-hint">
+              若「学生信息」页里显示的学工号不是学号，说明学校把非学号放进了 <code>&lt;cas:user&gt;</code>，
+              此时不能靠字段键修正，需要在插件侧改为从属性键取值（例如 <code>uid</code> / <code>account</code>）。
+            </p>
           </div>
           <div class="tsu-actions">
             <FaButton type="button" :loading="mappingSaving" :disabled="mappingLoading" @click="saveMapping">

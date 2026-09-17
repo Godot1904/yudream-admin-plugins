@@ -8,7 +8,9 @@ import online.yudream.base.plugin.spi.annotation.PluginSpec;
 import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.core.YuDreamPlugin;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginProvider;
+import online.yudream.base.plugin.spi.system.user.PluginUserService;
 import online.yudream.base.plugin.spi.widget.PluginGlobalWidget;
+import online.yudream.base.plugin.tarusso.application.service.BindingQueryService;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
 import online.yudream.base.plugin.tarusso.application.service.TaruSsoLoginProvider;
@@ -66,7 +68,7 @@ import online.yudream.base.plugin.tarusso.interfaces.http.TaruSsoHttpFacade;
 public final class TaruSsoPlugin implements YuDreamPlugin {
 
     public static final String CODE = "cas";
-    public static final String VERSION = "1.0.8";
+    public static final String VERSION = "1.1.0";
     public static final String MANAGE_PERMISSION = "plugin:cas:manage";
 
     @Override
@@ -81,7 +83,8 @@ public final class TaruSsoPlugin implements YuDreamPlugin {
         );
         StudentInfoService studentInfo = new StudentInfoService(
                 new StudentMappingDocumentRepository(context.documents()),
-                new StudentProfileDocumentRepository(context.documents())
+                new StudentProfileDocumentRepository(context.documents()),
+                new BindingQueryService(pluginUserService(context), CODE)
         );
         TaruSsoHttpFacade http = new TaruSsoHttpFacade(settings, studentInfo);
         context.registerHttpController(new TaruSsoAdminController(http));
@@ -90,5 +93,18 @@ public final class TaruSsoPlugin implements YuDreamPlugin {
         context.registerGlobalWidget(new PluginGlobalWidget("cas-binding-gate", "cas/Gate", "", 900));
         // 学生档案预填挂件：已绑定且尚未填写学生档案时，用 CAS 属性预填 yudream-student-info 的表单（组件 key = cas/Prefill）
         context.registerGlobalWidget(new PluginGlobalWidget("cas-student-prefill", "cas/Prefill", "", 901));
+    }
+
+    /**
+     * 宿主用户服务：只用于「学生信息 → 绑定账号」查询（SPI 2.29.0 的 findByExternalIdentity）。
+     * 宿主未注册或沙箱拒绝时返回 null，绑定信息降级为「无法查询」，不影响插件其他功能。
+     */
+    private static PluginUserService pluginUserService(PluginContext context) {
+        try {
+            return context.framework().users();
+        } catch (RuntimeException e) {
+            System.err.println("[cas] 宿主用户服务不可用，学生信息页将不显示绑定情况: " + e.getMessage());
+            return null;
+        }
     }
 }

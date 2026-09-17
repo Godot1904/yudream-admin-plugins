@@ -7,14 +7,15 @@
     <!-- 独立单模块项目：不继承宿主或插件仓 parent，仅消费已安装到本地仓库的 SPI 契约 -->
     <groupId>online.yudream.plugins</groupId>
     <artifactId>yudream-plugin-cas</artifactId>
-    <version>1.0.8</version>
+    <version>1.1.0</version>
 
     <properties>
         <java.version>21</java.version>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <yudream.plugin.spi.version>2.27.0</yudream.plugin.spi.version>
+        <!-- SPI 2.29.0：PluginUserService.findByExternalIdentity，用于管理端展示「学工号 → 本站账号」绑定 -->
+        <yudream.plugin.spi.version>2.29.0</yudream.plugin.spi.version>
         <jackson.version>2.20.0</jackson.version>
         <build.dir>${project.basedir}/target</build.dir>
     </properties>
