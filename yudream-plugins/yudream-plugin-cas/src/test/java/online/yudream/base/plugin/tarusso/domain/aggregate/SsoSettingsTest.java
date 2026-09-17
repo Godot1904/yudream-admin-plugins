@@ -1,5 +1,6 @@
 package online.yudream.base.plugin.tarusso.domain.aggregate;
 
+import online.yudream.base.plugin.tarusso.bootstrap.TaruSsoPlugin;
 import online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ class SsoSettingsTest {
                 "https://auth.taru.edu.cn/", "/authserver/login", "/cas/p3/serviceValidate",
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback"
+                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", true
         );
         assertTrue(settings.ready());
         assertTrue(settings.loginEnabled());
@@ -31,7 +32,7 @@ class SsoSettingsTest {
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "client", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/callback"
+                "client", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/callback", true
         );
         assertFalse(settings.ready());
         assertTrue(settings.withClientSecretConfigured(true).ready());
@@ -44,8 +45,35 @@ class SsoSettingsTest {
                 false, SsoProtocol.CAS, settings.displayName(), settings.icon(), settings.casBaseUrl(),
                 settings.loginPath(), settings.validatePath(), settings.oidcIssuer(), settings.oidcAuthorizePath(),
                 settings.oidcTokenPath(), settings.oidcUserinfoPath(), settings.oidcJwksPath(), settings.oidcRegisterPath(),
-                "", false, settings.scopes(), "https://site.example/callback?from=login"
+                "", false, settings.scopes(), "https://site.example/callback?from=login", true
         );
         assertEquals("https://site.example/callback?from=login&state=s1", withCallback.casServiceUrl("s1"));
+    }
+
+    @Test
+    void loginWarmupDefaultsOnAndCanBeTurnedOff() {
+        SsoSettings defaults = SsoSettings.defaults();
+        assertTrue(defaults.loginWarmup());
+        SsoSettings off = defaults.withLoginWarmup(false);
+        assertFalse(off.loginWarmup());
+        // 关掉预热只影响这一项，其余字段原样保留
+        assertEquals(defaults.displayName(), off.displayName());
+        assertEquals(defaults.casBaseUrl(), off.casBaseUrl());
+        assertEquals(defaults.callbackUrl(), off.callbackUrl());
+    }
+
+    @Test
+    void warmupUrlCarriesOnlyTheState() {
+        SsoSettings settings = SsoSettings.defaults();
+        assertEquals(SsoSettings.WARMUP_PATH + "?state=abc", settings.warmupUrl("abc"));
+        // 只有 state 这一个参数：不存在可被外部利用的任意跳转目标
+        assertFalse(settings.warmupUrl("abc").contains("target"));
+        assertFalse(settings.warmupUrl("abc").contains("url="));
+    }
+
+    @Test
+    void warmupPathMatchesPluginCode() {
+        assertTrue(SsoSettings.WARMUP_PATH.startsWith("/api/plugins/" + TaruSsoPlugin.CODE + "/"),
+                "WARMUP_PATH 必须位于插件 code 前缀下：" + SsoSettings.WARMUP_PATH);
     }
 }

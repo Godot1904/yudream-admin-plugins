@@ -5,6 +5,7 @@ import online.yudream.base.plugin.spi.http.PluginHttpResponse;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
+import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
 import online.yudream.base.plugin.tarusso.domain.aggregate.StudentMapping;
 import online.yudream.base.plugin.tarusso.domain.service.SsoProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.support.JsonSupport;
@@ -51,6 +52,7 @@ public final class TaruSsoHttpFacade {
                 current.clientSecretConfigured(),
                 firstNonBlank(body.scopes(), current.scopes()),
                 firstNonBlank(body.callbackUrl(), current.callbackUrl()),
+                body.loginWarmup() == null ? current.loginWarmup() : body.loginWarmup(),
                 false
         );
         return PluginHttpResponse.ok(settings.save(incoming, body.clientSecret()));
@@ -59,6 +61,81 @@ public final class TaruSsoHttpFacade {
     public PluginHttpResponse test() {
         SsoProtocolClient.ConnectivityResult result = settings.test();
         return PluginHttpResponse.ok(Map.of("ok", result.ok(), "message", result.message()));
+    }
+
+    /**
+     * 登录前预热页（公开、无权限注解）：点第三方登录后先落到本站这个页面。
+     *
+     * <p>部分前置网关对"首次、不带其会话 cookie（如 {@code route}）"的请求直接回 404，而同 URL 第二次访问
+     * 就正常。这里先发一次跨站请求把该 cookie 种下来，再跳真正的认证地址；浏览器拦截第三方 cookie 时预热
+     * 自然无效，页面仍会照常跳转（等价于原来的行为，用户再点一次即可）。
+     *
+     * <p>安全性：页面 URL 只带宿主签发的 {@code state}，真正的目标地址由服务端按当前配置重建，
+     * 因此不存在可被外部利用的任意跳转目标。
+     */
+    public PluginHttpResponse warmup(PluginHttpRequest request) {
+        String state = queryParam(request, "state");
+        if (state == null) {
+            return PluginHttpResponse.rawJson(400, Map.of("message", "缺少 state 参数"));
+        }
+        SsoSettings current = settings.current();
+        String target = settings.client(current.protocol()).rawAuthorizationUrl(current, state);
+        return new PluginHttpResponse(200,
+                Map.of("Cache-Control", "no-store"),
+                "text/html; charset=UTF-8",
+                warmupPage(target, current.loginWarmup()),
+                false);
+    }
+
+    /** 预热页 HTML：先跨站预热再 location.replace 到目标；任何异常都兜底跳转。 */
+    static String warmupPage(String target, boolean warmup) {
+        String preheat = warmup
+                ? """
+                  try {
+                    var controller = new AbortController()
+                    setTimeout(function () { controller.abort() }, 1200)
+                    fetch(target, { mode: 'no-cors', credentials: 'include', cache: 'no-store',
+                      signal: controller.signal }).catch(function () {}).then(go)
+                  } catch (e) { go() }
+                  """
+                : "go()";
+        return """
+                <!doctype html>
+                <html lang="zh-CN">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="referrer" content="no-referrer">
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <title>正在前往统一身份认证…</title>
+                </head>
+                <body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;padding:32px;color:#4b5563">
+                <p>正在前往统一身份认证，请稍候…</p>
+                <p><a id="fallback" href="#">如果没有自动跳转，请点这里</a></p>
+                <script>
+                (function () {
+                  var target = %s
+                  var done = false
+                  function go() {
+                    if (done) { return }
+                    done = true
+                    location.replace(target)
+                  }
+                  document.getElementById('fallback').setAttribute('href', target)
+                  %s
+                  setTimeout(go, 1600)
+                })()
+                </script>
+                </body>
+                </html>
+                """.formatted(jsString(target), preheat);
+    }
+
+    /** 把 URL 安全地放进 JS 字符串字面量（同时挡掉 </script> 之类的闭合注入）。 */
+    private static String jsString(String value) {
+        String text = value == null ? "" : value;
+        return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("<", "\\u003c").replace(">", "\\u003e")
+                .replace("&", "\\u0026").replace("\n", "").replace("\r", "") + "\"";
     }
 
     public PluginHttpResponse registerOidc(PluginHttpRequest request) {

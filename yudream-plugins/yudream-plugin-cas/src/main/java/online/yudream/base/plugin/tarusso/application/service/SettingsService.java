@@ -98,7 +98,8 @@ public final class SettingsService {
                     clientId,
                     secrets.configured(),
                     settings.scopes(),
-                    settings.callbackUrl()
+                    settings.callbackUrl(),
+                    settings.loginWarmup()
             );
             remember(repository.save(updated));
         } else {

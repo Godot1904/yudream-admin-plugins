@@ -11,6 +11,14 @@ public interface SsoProtocolClient {
 
     String authorizationUrl(SsoSettings settings, String state);
 
+    /**
+     * 认证服务自身的授权地址（不带本地包装）。预热页据此重建真正要跳转的目标。
+     * 默认与 {@link #authorizationUrl} 相同，只有做了包装的协议才需要覆写。
+     */
+    default String rawAuthorizationUrl(SsoSettings settings, String state) {
+        return authorizationUrl(settings, state);
+    }
+
     ExternalIdentity exchange(SsoSettings settings, String ticket, String state, String clientSecret);
 
     ConnectivityResult probe(SsoSettings settings, String clientSecret);

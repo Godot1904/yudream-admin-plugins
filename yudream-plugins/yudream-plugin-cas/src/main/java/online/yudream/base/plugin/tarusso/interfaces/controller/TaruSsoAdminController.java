@@ -65,4 +65,13 @@ public final class TaruSsoAdminController {
     public PluginHttpResponse myProfile(PluginHttpRequest request) {
         return http.myProfile(request);
     }
+
+    /**
+     * 公开端点（permission 为空）：登录前预热页。点第三方登录后先落到本站这一页，
+     * 先发一次跨站请求拿到前置网关的会话 cookie，再跳真正的认证地址。
+     */
+    @PluginHttpEndpoint(method = "GET", path = "/public/warmup")
+    public PluginHttpResponse warmup(PluginHttpRequest request) {
+        return http.warmup(request);
+    }
 }

@@ -16,6 +16,8 @@ export interface SsoSettings {
   clientSecretConfigured: boolean
   scopes: string
   callbackUrl: string
+  /** 登录前是否走本站预热页（先跨站请求拿网关会话 cookie 再跳认证地址）。 */
+  loginWarmup: boolean
   ready: boolean
 }
 

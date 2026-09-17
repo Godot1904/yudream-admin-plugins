@@ -48,6 +48,7 @@ const form = reactive<SsoSettings>({
   clientSecretConfigured: false,
   scopes: 'openid profile email',
   callbackUrl: '',
+  loginWarmup: true,
   ready: false,
 })
 
@@ -220,6 +221,24 @@ onMounted(() => {
           title="尚未对登录页开放"
           :description="oidcMode ? 'OIDC 需要本站回调地址、client_id 与 client_secret。' : 'CAS 需要填写本站回调地址，并把该域名登记到学校网信中心的 service 白名单。'"
         />
+
+        <FaCard v-if="!oidcMode" title="登录前预热" content-class="tsu-card-content">
+          <div class="tsu-switch-row">
+            <FaSwitch v-model="form.loginWarmup" />
+            <div class="tsu-switch-copy">
+              <strong>先经本站预热页再跳转认证</strong>
+              <small>
+                点「第三方登录」后先落到 <code>/api/plugins/cas/public/warmup</code>，页面会先发一次跨站请求，
+                让认证服务前面的网关把会话 cookie（如 <code>route</code>）种下来，再跳真正的认证地址。
+              </small>
+            </div>
+          </div>
+          <p class="tsu-field-hint">
+            适用场景：认证地址直接访问报 404、但在地址栏回车再来一次就正常（网关首次请求未固定会话）。
+            浏览器若拦截第三方 cookie，预热会自动失效并照常跳转（等同于关闭本开关，用户再点一次即可）。
+            该开关不影响 OIDC：OIDC 的 redirect_uri 必须与网信中心登记值精确一致，不会改跳本站页面。
+          </p>
+        </FaCard>
 
         <FaCard title="开关与展示" content-class="tsu-card-content">
           <div class="tsu-switch-row">

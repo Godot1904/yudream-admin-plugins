@@ -20,6 +20,13 @@ public final class SsoSettings {
     public static final String DEFAULT_DISPLAY_NAME = "塔里木大学统一身份认证";
     public static final String DEFAULT_ICON = "i-ri:graduation-cap-line";
 
+    /**
+     * 登录前预热页（站点自身源上的中转页）：先发一次跨站请求把前置网关的会话 cookie（如 oute）
+     * 种下来，再跳真正的认证地址。部分网关首次不带该 cookie 的请求会直接 404，靠这一步规避。
+     * 路径必须与 TaruSsoAdminController 的 /public/warmup 及插件 code(cas) 一致。
+     */
+    public static final String WARMUP_PATH = "/api/plugins/cas/public/warmup";
+
     private final boolean enabled;
     private final SsoProtocol protocol;
     private final String displayName;
@@ -37,6 +44,8 @@ public final class SsoSettings {
     private final boolean clientSecretConfigured;
     private final String scopes;
     private final String callbackUrl;
+    /** 登录前是否走预热页（默认开；网关不需要时可以关掉以少一次请求）。 */
+    private final boolean loginWarmup;
 
     public SsoSettings(
             boolean enabled,
@@ -55,7 +64,8 @@ public final class SsoSettings {
             String clientId,
             boolean clientSecretConfigured,
             String scopes,
-            String callbackUrl
+            String callbackUrl,
+            boolean loginWarmup
     ) {
         this.enabled = enabled;
         this.protocol = protocol == null ? SsoProtocol.CAS : protocol;
@@ -74,6 +84,7 @@ public final class SsoSettings {
         this.clientSecretConfigured = clientSecretConfigured;
         this.scopes = blankToDefault(scopes, DEFAULT_SCOPES);
         this.callbackUrl = trimToEmpty(callbackUrl);
+        this.loginWarmup = loginWarmup;
     }
 
     public static SsoSettings defaults() {
@@ -94,7 +105,8 @@ public final class SsoSettings {
                 "",
                 false,
                 DEFAULT_SCOPES,
-                ""
+                "",
+                true
         );
     }
 
@@ -102,7 +114,7 @@ public final class SsoSettings {
         return new SsoSettings(
                 enabled, protocol, displayName, icon, casBaseUrl, loginPath, validatePath,
                 oidcIssuer, oidcAuthorizePath, oidcTokenPath, oidcUserinfoPath, oidcJwksPath,
-                oidcRegisterPath, clientId, configured, scopes, callbackUrl
+                oidcRegisterPath, clientId, configured, scopes, callbackUrl, loginWarmup
         );
     }
 
@@ -226,6 +238,27 @@ public final class SsoSettings {
         return callbackUrl;
     }
 
+    /** 登录前是否走预热页。 */
+    public boolean loginWarmup() {
+        return loginWarmup;
+    }
+
+    public SsoSettings withLoginWarmup(boolean warmup) {
+        return new SsoSettings(
+                enabled, protocol, displayName, icon, casBaseUrl, loginPath, validatePath,
+                oidcIssuer, oidcAuthorizePath, oidcTokenPath, oidcUserinfoPath, oidcJwksPath,
+                oidcRegisterPath, clientId, clientSecretConfigured, scopes, callbackUrl, warmup
+        );
+    }
+
+    /**
+     * 预热页地址：只带宿主签发的 state，真正的认证地址由服务端重建，
+     * 因此这里不会成为可被外部利用的跳转（无任意 target 参数）。
+     */
+    public String warmupUrl(String state) {
+        return WARMUP_PATH + "?state=" + encode(state == null ? "" : state);
+    }
+
     private static String blankToDefault(String value, String defaultValue) {
         String trimmed = trimToEmpty(value);
         return trimmed.isEmpty() ? defaultValue : trimmed;
@@ -233,6 +266,10 @@ public final class SsoSettings {
 
     private static String trimToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String encode(String value) {
+        return java.net.URLEncoder.encode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static boolean blank(String value) {

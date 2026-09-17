@@ -35,14 +35,34 @@ class TaruSsoLoginProviderTest {
     }
 
     @Test
-    void casAuthorizeEmbedsStateInService() {
+    void casAuthorizeGoesThroughTheWarmupPageByDefault() {
         SettingsService service = service();
         service.save(casReady(), null);
         TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
         assertTrue(provider.enabled());
         String url = provider.authorizationUrl(new PluginExternalLoginAuthorizeRequest("cas", "st-state"));
-        assertTrue(url.startsWith("https://auth.taru.edu.cn/authserver/login?service="));
+        // 默认开启预热：先落到本站预热页，目标地址由服务端重建
+        assertEquals(SsoSettings.WARMUP_PATH + "?state=st-state", url);
+    }
+
+    @Test
+    void casAuthorizeGoesStraightToCasWhenWarmupDisabled() {
+        SettingsService service = service();
+        service.save(casReady(false), null);
+        TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
+        String url = provider.authorizationUrl(new PluginExternalLoginAuthorizeRequest("cas", "st-state"));
+        assertTrue(url.startsWith("https://auth.taru.edu.cn/authserver/login?service="), url);
         assertTrue(url.contains("state%3Dst-state") || url.contains("state=st-state"));
+    }
+
+    @Test
+    void oidcAuthorizeIsNotWrappedByWarmup() {
+        SettingsService service = service();
+        service.save(oidcReady(), "s3cret");
+        TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
+        String url = provider.authorizationUrl(new PluginExternalLoginAuthorizeRequest("oidc", "oidc-state"));
+        // 预热只作用于 CAS：OIDC 的 redirect_uri 必须与登记值精确一致，不能改跳本站页面
+        assertTrue(url.startsWith("https://auth.taru.edu.cn/authserver/oidc/authorize?"), url);
     }
 
     @Test
@@ -53,7 +73,7 @@ class TaruSsoLoginProviderTest {
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "client-1", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
+                "client-1", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", true, false
         );
         service.save(oidc, null);
         TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
@@ -79,12 +99,26 @@ class TaruSsoLoginProviderTest {
     }
 
     private static SsoSettingsDto casReady() {
+        return casReady(true);
+    }
+
+    private static SsoSettingsDto casReady(boolean loginWarmup) {
         return new SsoSettingsDto(
                 true, "CAS", SsoSettings.DEFAULT_DISPLAY_NAME, SsoSettings.DEFAULT_ICON,
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
+                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", loginWarmup, false
+        );
+    }
+
+    private static SsoSettingsDto oidcReady() {
+        return new SsoSettingsDto(
+                true, "OIDC", SsoSettings.DEFAULT_DISPLAY_NAME, SsoSettings.DEFAULT_ICON,
+                SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
+                SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
+                SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
+                "client-1", true, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", true, false
         );
     }
 

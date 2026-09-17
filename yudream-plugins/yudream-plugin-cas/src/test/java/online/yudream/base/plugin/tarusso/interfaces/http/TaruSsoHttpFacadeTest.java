@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -116,6 +117,40 @@ class TaruSsoHttpFacadeTest {
         assertEquals(404, env.facade.myProfile(loggedInRequest(Map.of("socialUid", List.of("404")))).status());
     }
 
+    @Test
+    void warmupPageRebuildsTheTargetServerSide() {
+        Env env = new Env();
+        env.settings.save(casReady(), null);
+
+        PluginHttpResponse response = env.facade.warmup(request(Map.of("state", List.of("st-state"))));
+
+        assertEquals(200, response.status());
+        assertEquals("text/html; charset=UTF-8", response.contentType());
+        assertEquals("no-store", response.headers().get("Cache-Control"));
+        String html = String.valueOf(response.body());
+        // 目标由服务端按当前配置重建：URL 里只有 state，没有可被外部利用的任意跳转参数
+        assertTrue(html.contains("https://auth.taru.edu.cn/authserver/login?service="), html);
+        assertTrue(html.contains("state%3Dst-state") || html.contains("state=st-state"), html);
+        assertTrue(html.contains("location.replace"), html);
+        assertTrue(html.contains("mode: 'no-cors'"), html);
+    }
+
+    @Test
+    void warmupPageWithoutStateIsRejected() {
+        Env env = new Env();
+        env.settings.save(casReady(), null);
+        assertEquals(400, env.facade.warmup(request(Map.of())).status());
+    }
+
+    @Test
+    void warmupPageSkipsPreheatWhenDisabled() {
+        Env env = new Env();
+        env.settings.save(casReady(false), null);
+        String html = String.valueOf(env.facade.warmup(request(Map.of("state", List.of("s1")))).body());
+        assertFalse(html.contains("mode: 'no-cors'"), html);
+        assertTrue(html.contains("location.replace"), html);
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> gate(TaruSsoHttpFacade facade) {
         PluginHttpResponse response = facade.gate();
@@ -145,12 +180,16 @@ class TaruSsoHttpFacadeTest {
     }
 
     private static SsoSettingsDto casReady() {
+        return casReady(true);
+    }
+
+    private static SsoSettingsDto casReady(boolean loginWarmup) {
         return new SsoSettingsDto(
                 true, "CAS", SsoSettings.DEFAULT_DISPLAY_NAME, SsoSettings.DEFAULT_ICON,
                 SsoSettings.DEFAULT_CAS_BASE_URL, SsoSettings.DEFAULT_LOGIN_PATH, SsoSettings.DEFAULT_VALIDATE_PATH,
                 SsoSettings.DEFAULT_OIDC_ISSUER, SsoSettings.DEFAULT_OIDC_AUTHORIZE_PATH, SsoSettings.DEFAULT_OIDC_TOKEN_PATH,
                 SsoSettings.DEFAULT_OIDC_USERINFO_PATH, SsoSettings.DEFAULT_OIDC_JWKS_PATH, SsoSettings.DEFAULT_OIDC_REGISTER_PATH,
-                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", false
+                "", false, SsoSettings.DEFAULT_SCOPES, "https://site.example/api/external-login/callback", loginWarmup, false
         );
     }
 

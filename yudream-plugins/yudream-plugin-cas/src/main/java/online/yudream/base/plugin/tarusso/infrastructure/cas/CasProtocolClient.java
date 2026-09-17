@@ -17,6 +17,16 @@ public final class CasProtocolClient implements SsoProtocolClient {
 
     @Override
     public String authorizationUrl(SsoSettings settings, String state) {
+        // 开启预热时先跳到本站自己的预热页：它会先发一次跨站请求拿到前置网关的会话 cookie
+        // （部分网关对首次不带该 cookie 的请求直接回 404），再跳下面的真实地址。
+        if (settings.loginWarmup()) {
+            return settings.warmupUrl(state);
+        }
+        return rawAuthorizationUrl(settings, state);
+    }
+
+    @Override
+    public String rawAuthorizationUrl(SsoSettings settings, String state) {
         String service = settings.casServiceUrl(state);
         return settings.loginUrl() + "?service=" + encode(service);
     }
