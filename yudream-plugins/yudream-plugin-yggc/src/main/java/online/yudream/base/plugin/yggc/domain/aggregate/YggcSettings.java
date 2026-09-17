@@ -59,7 +59,12 @@ public record YggcSettings(
         /** 设备授权码有效期（秒） */
         long oauthDeviceTtl,
         /** 认证服务器名称（Yggdrasil metadata 的 meta.serverName，展示于启动器），留空则回退站点名 */
-        String serverName
+        String serverName,
+        /**
+         * 共享客户端标识：写入发现文档 shared_client_id，供没有内置 client_id 的
+         * Yggdrasil Connect 启动器直接使用；留空则发现文档不输出该字段。
+         */
+        String sharedClientId
 ) {
 
     public static final String ALGORITHM_V3 = "v3";
@@ -96,6 +101,7 @@ public record YggcSettings(
                 604800L,
                 2592000L,
                 600L,
+                "",
                 ""
         );
     }
@@ -128,7 +134,8 @@ public record YggcSettings(
                 number(document, "oauthAccessTtl", defaults.oauthAccessTtl),
                 number(document, "oauthRefreshTtl", defaults.oauthRefreshTtl),
                 number(document, "oauthDeviceTtl", defaults.oauthDeviceTtl),
-                text(document, "serverName", defaults.serverName)
+                text(document, "serverName", defaults.serverName),
+                text(document, "sharedClientId", defaults.sharedClientId)
         ).normalized();
     }
 
@@ -157,7 +164,8 @@ public record YggcSettings(
                 clamp(oauthAccessTtl, 5L * MINUTE, 365L * DAY, 604800L),
                 clamp(oauthRefreshTtl, 5L * MINUTE, 365L * DAY, 2592000L),
                 clamp(oauthDeviceTtl, MINUTE, DAY, 600L),
-                cut(serverName, 64)
+                cut(serverName, 64),
+                cut(sharedClientId, 128)
         );
     }
 
@@ -171,7 +179,7 @@ public record YggcSettings(
                 searchProfileMax, showConfigSection, enableAli, restoreApi, disableAuthserver,
                 connectServerUrl, unionApiRoot, cut(newMemberKey, 512), unionEnableUpdate,
                 unionEnableOauth2, unionSyncEnabled, unionSyncIntervalMinutes, unionSyncOnLogin,
-                oauthAccessTtl, oauthRefreshTtl, oauthDeviceTtl, serverName
+                oauthAccessTtl, oauthRefreshTtl, oauthDeviceTtl, serverName, sharedClientId
         );
     }
 
@@ -225,6 +233,7 @@ public record YggcSettings(
         document.put("oauthRefreshTtl", oauthRefreshTtl);
         document.put("oauthDeviceTtl", oauthDeviceTtl);
         document.put("serverName", serverName);
+        document.put("sharedClientId", sharedClientId);
         return document;
     }
 

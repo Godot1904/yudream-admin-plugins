@@ -3,6 +3,7 @@ import type {
   YggcClientPage,
   YggcClientView,
   YggcDeviceContext,
+  YggcEligibleClientView,
   YggcGrantGroup,
   YggcKeyPairInfo,
   YggcSettings,
@@ -37,6 +38,8 @@ export function createYggcApi(sdk: YuDreamPluginSdk) {
     status: () => sdk.http.get<YggcStatus>('/admin/status'),
     clients: (keyword: string, page: number, size: number) =>
       sdk.http.get<YggcClientPage>(`/admin/clients${buildQuery({ keyword, page, size })}`),
+    eligibleSharedClients: () =>
+      sdk.http.get<YggcEligibleClientView[]>('/admin/shared-clients'),
     createClient: (data: Record<string, unknown>) => sdk.http.post<YggcClientView>('/admin/clients', data),
     updateClient: (id: string, data: Record<string, unknown>) =>
       sdk.http.request<YggcClientView>(`/admin/clients/${encodeURIComponent(id)}`, { method: 'PUT', data }),

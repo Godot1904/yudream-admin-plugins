@@ -141,6 +141,23 @@ onMounted(model.load)
             <input v-model.number="model.form.oauthDeviceTtl" type="number" min="60" class="yggc-input">
             <p class="yggc-help">RFC 8628 设备码轮询有效期。默认 600（10 分钟）。</p>
           </label>
+          <label>
+            <span>共享客户端（shared_client_id）</span>
+            <select v-model="model.form.sharedClientId" class="yggc-input">
+              <option value="">不启用（发现文档不输出 shared_client_id）</option>
+              <option v-for="client in model.sharedCandidates" :key="client.id" :value="client.id">
+                {{ client.name }}（{{ client.id }}）
+              </option>
+            </select>
+            <p class="yggc-help">
+              写入 OIDC 发现文档的 <code>shared_client_id</code>，让没有内置 client_id 的启动器（如 PCL-CE）直接使用该应用登录。
+              只能选启用中的公共客户端；回调地址留空即可（设备流不需要 redirect_uri，留空也能避免共享 id 被用于授权码流）。
+              留空或未绑定时行为与旧版本完全一致。
+            </p>
+            <p v-if="model.form.sharedClientId && !model.sharedCandidates.some(item => item.id === model.form.sharedClientId)" class="yggc-help">
+              注意：当前绑定的应用已不在候选列表（被禁用、改为机密客户端或已删除），保存时会被拒绝；请改选其他应用或清空。
+            </p>
+          </label>
         </FaCard>
 
         <FaCard content-class="yggc-card-content">

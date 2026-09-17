@@ -4,7 +4,8 @@ import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { YggcClientView } from '../types'
 import { FaButton, FaIcon, FaInput, FaModal, FaPagination, FaResponsiveTable, FaSearchBar, FaSwitch, FaTag, FaTextarea, useFaModal } from '@yudream/components'
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { createYggcApi } from '../api/yggc-api'
 import { useYggcClients } from '../composables/useYggcClients'
 
 const props = defineProps<{
@@ -14,8 +15,11 @@ const props = defineProps<{
 
 void props.route
 
+const api = createYggcApi(props.sdk)
 const model = useYggcClients(props.sdk)
 const confirm = useFaModal()
+/** 当前被声明为共享客户端（发现文档 shared_client_id）的应用 id。 */
+const sharedClientId = ref('')
 const pagination = reactive({ page: 1, size: 10 })
 const modalTitle = computed(() => model.editing ? '编辑应用' : '新建应用')
 const columns: TableColumn<YggcClientView>[] = [
@@ -56,7 +60,23 @@ function askDelete(client: YggcClientView) {
   })
 }
 
-onMounted(() => model.load(pagination.page, pagination.size))
+onMounted(async () => {
+  await Promise.all([
+    model.load(pagination.page, pagination.size),
+    loadSharedClientId(),
+  ])
+})
+
+/** 标记哪条应用正被用作共享客户端；失败时静默（不影响列表本身）。 */
+async function loadSharedClientId() {
+  try {
+    const settings = await api.config()
+    sharedClientId.value = settings.sharedClientId ?? ''
+  }
+  catch {
+    sharedClientId.value = ''
+  }
+}
 </script>
 
 <template>
@@ -92,6 +112,7 @@ onMounted(() => model.load(pagination.page, pagination.size))
       >
         <template #cell-name="{ row }">
           <strong>{{ row.original.name }}</strong>
+          <FaTag v-if="row.original.id === sharedClientId" class="ml-2" variant="secondary">共享登录</FaTag>
         </template>
         <template #cell-clientId="{ row }">
           <code class="yggc-code">{{ row.original.id }}</code>
@@ -138,6 +159,7 @@ onMounted(() => model.load(pagination.page, pagination.size))
         <label>
           <span>回调地址（redirect_uri）</span>
           <FaTextarea v-model="model.form.redirectUrisText" class="w-full" placeholder="每行一个完整 URL，须与客户端授权请求完全一致" />
+          <p class="yggc-help">只用于设备码登录（如 PCL-CE 的 Yggdrasil Connect）的应用可以留空；留空也避免共享 client_id 被用于授权码流。</p>
         </label>
         <div class="yggc-form-grid two">
           <label>

@@ -28,7 +28,7 @@ import online.yudream.base.plugin.yggc.interfaces.http.YggcHttpFacade;
 @PluginSpec(
         code = YggcPlugin.CODE,
         name = "Union Yggdrasil Connect",
-        version = "1.1.0",
+        version = "1.2.0",
         description = "传统 Yggdrasil 协议 + Yggdrasil Connect（OAuth 2.0 / OIDC，Janus 能力内置）：授权码 + PKCE、设备授权、刷新令牌旋转、RS256 ID Token。",
         dependencies = {"yudream-skin"}
 )

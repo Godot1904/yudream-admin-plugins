@@ -18,6 +18,12 @@ export interface YggcClientView {
   secret?: string
 }
 
+/** GET /admin/shared-clients：可绑定为共享客户端的应用（启用中的公共客户端）。 */
+export interface YggcEligibleClientView extends YggcClientView {
+  /** 是否就是当前发现文档声明的共享客户端。 */
+  shared?: boolean
+}
+
 export interface YggcTokenView {
   token: string
   clientId: string
@@ -110,6 +116,11 @@ export interface YggcSettings {
   oauthDeviceTtl: number
   /** 认证服务器名称（meta.serverName），留空回退站点名 */
   serverName: string
+  /**
+   * 共享客户端标识：写入发现文档 shared_client_id，供没有内置 client_id 的
+   * Yggdrasil Connect 启动器直接登录；留空则不输出该字段。
+   */
+  sharedClientId: string
   keyPairs?: {
     texture?: YggcKeyPairInfo
     token?: YggcKeyPairInfo

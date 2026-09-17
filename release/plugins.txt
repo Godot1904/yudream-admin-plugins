@@ -11,7 +11,7 @@
 #   - questionbank 1.4.0：群指令开放时间限制
 #   - points-mall 1.1.0：新增积分商城（封面与凭证走宿主对象存储、结算资产按商品设置、发放凭证 + 用户确认收货）
 #   - eduroam 1.2.0：北京大学探测认证、学校后缀配置、首次认证自动开户并设置本站密码
-#   - yggc 1.1.0：角色自动同步到 MUA 主服务器（定时增量对账 + 玩家登录补推 + 推送快照）
+#   - yggc 1.2.0：发现文档 shared_client_id（共享客户端），支持无内置 client_id 的启动器登录
 # 未列入的插件不打包、不发布、不跟随升版。
 yudream-plugin-minecraft-server
 yudream-plugin-minecraft-activity-proof
