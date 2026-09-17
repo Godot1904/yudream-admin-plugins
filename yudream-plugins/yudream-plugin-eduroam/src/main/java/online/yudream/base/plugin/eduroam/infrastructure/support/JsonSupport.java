@@ -17,7 +17,8 @@ public final class JsonSupport {
         try {
             return MAPPER.readValue(json == null || json.isBlank() ? "{}" : json, type);
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("请求 JSON 解析失败：" + e.getMessage(), e);
+            // 解析异常可能包含原始请求片段，不能把校园密码或本站密码放进响应和日志。
+            throw new IllegalArgumentException("请求 JSON 格式不正确");
         }
     }
 }

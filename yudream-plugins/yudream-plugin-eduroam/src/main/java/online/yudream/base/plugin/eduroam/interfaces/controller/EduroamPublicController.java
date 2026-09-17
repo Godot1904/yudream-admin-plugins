@@ -28,4 +28,9 @@ public class EduroamPublicController {
     public PluginHttpResponse login(PluginHttpRequest request) {
         return http.login(request);
     }
+
+    @PluginHttpEndpoint(method = "POST", path = "/public/register")
+    public PluginHttpResponse register(PluginHttpRequest request) {
+        return http.register(request);
+    }
 }

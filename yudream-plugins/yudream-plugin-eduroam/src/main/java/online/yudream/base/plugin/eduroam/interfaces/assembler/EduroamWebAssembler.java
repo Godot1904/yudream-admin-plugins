@@ -1,6 +1,7 @@
 package online.yudream.base.plugin.eduroam.interfaces.assembler;
 
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamLoginCmd;
+import online.yudream.base.plugin.eduroam.application.cmd.EduroamRegisterCmd;
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamReviewCmd;
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamSettingsSaveCmd;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamAccountDTO;
@@ -9,6 +10,7 @@ import online.yudream.base.plugin.eduroam.application.dto.EduroamLoginResultDTO;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamPublicConfigDTO;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamSettingsDTO;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamLoginRequest;
+import online.yudream.base.plugin.eduroam.interfaces.request.EduroamRegisterRequest;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamReviewRequest;
 import online.yudream.base.plugin.eduroam.interfaces.request.EduroamSettingsSaveRequest;
 import online.yudream.base.plugin.eduroam.interfaces.res.EduroamAccountRes;
@@ -19,6 +21,11 @@ import online.yudream.base.plugin.eduroam.interfaces.res.EduroamSettingsRes;
 
 /** 请求到命令、DTO 到响应的转换。控制器与 facade 只调用这里，不自己拼装字段。 */
 public class EduroamWebAssembler {
+
+    public EduroamRegisterCmd toCmd(EduroamRegisterRequest request) {
+        EduroamRegisterRequest safe = request == null ? new EduroamRegisterRequest(null, null, null, null) : request;
+        return new EduroamRegisterCmd(safe.ticket(), safe.state(), safe.password(), safe.confirmPassword());
+    }
 
     public EduroamLoginCmd toCmd(EduroamLoginRequest request) {
         EduroamLoginRequest safe = request == null ? new EduroamLoginRequest(null, null, null) : request;
@@ -48,7 +55,7 @@ public class EduroamWebAssembler {
 
     public EduroamLoginResultRes toRes(EduroamLoginResultDTO dto) {
         return new EduroamLoginResultRes(dto.success(), dto.email(), dto.identity(), dto.account(), dto.ticket(),
-                dto.expiresAt(), dto.reasonCode(), dto.message());
+                dto.expiresAt(), dto.reasonCode(), dto.message(), dto.registrationRequired(), dto.accountCreated());
     }
 
     public EduroamSettingsRes toRes(EduroamSettingsDTO dto) {

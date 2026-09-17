@@ -2,6 +2,7 @@ package online.yudream.base.plugin.eduroam.application.service;
 
 import online.yudream.base.plugin.eduroam.application.assembler.EduroamAppAssembler;
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamLoginCmd;
+import online.yudream.base.plugin.eduroam.application.cmd.EduroamRegisterCmd;
 import online.yudream.base.plugin.eduroam.application.cmd.EduroamSettingsSaveCmd;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamAccountDTO;
 import online.yudream.base.plugin.eduroam.application.dto.EduroamAttemptDTO;
@@ -18,6 +19,7 @@ import online.yudream.base.plugin.eduroam.domain.repo.EduroamLoginTicketReposito
 import online.yudream.base.plugin.eduroam.domain.repo.EduroamSettingsRepository;
 import online.yudream.base.plugin.eduroam.domain.valobj.EduroamIdentity;
 import online.yudream.base.plugin.eduroam.domain.valobj.EduroamProbeOutcome;
+import online.yudream.base.plugin.eduroam.domain.valobj.EduroamSitePassword;
 import online.yudream.base.plugin.eduroam.infrastructure.support.AttemptRateLimiter;
 
 import java.security.SecureRandom;
@@ -36,7 +38,7 @@ import java.util.function.LongSupplier;
  *
  * <p>四条边界写死在这里：
  * <ul>
- *   <li><b>不存密码</b>：密码只在 {@link EduroamProbePort#probe} 期间存在；</li>
+ *   <li><b>不存校园密码</b>：校园密码只用于探测；本站密码单独提交宿主编码，插件不持久化；</li>
  *   <li><b>票据一次性</b>：核销即删除，且必须与宿主签发的 state 对上，重放无效；</li>
  *   <li><b>禁止即拒绝</b>：被管理员禁止的账号连上游都不探测，避免拿封禁账号继续试探；</li>
  *   <li><b>失败才限流</b>：按客户端 IP 统计失败次数，正常用户输错一两次不会被挡。</li>
@@ -152,6 +154,10 @@ public class EduroamAppService {
         if (!settings.enabled()) {
             throw new IllegalArgumentException("Eduroam 登录当前未开放，请联系管理员");
         }
+        String state = cmd == null || cmd.state() == null ? "" : cmd.state().trim();
+        if (state.isEmpty()) {
+            throw new IllegalArgumentException("登录请求缺少 state，请从登录页重新进入");
+        }
         long now = clock.getAsLong();
         String rateKey = rateKey(clientIp, account);
         if (rateLimiter.blocked(rateKey, settings.maxAttemptsPerHour(), RATE_WINDOW_MILLIS, now)) {
@@ -197,15 +203,35 @@ public class EduroamAppService {
                 : existing.recordLogin(identity.identity(), identity.account(), clientIp, now);
         accounts.save(saved);
 
-        String state = cmd == null ? "" : (cmd.state() == null ? "" : cmd.state().trim());
-        if (state.isEmpty()) {
-            throw new IllegalArgumentException("登录请求缺少 state，请从登录页重新进入");
-        }
+        boolean registrationRequired = !localUsers.existsByEmail(saved.email());
         tickets.purgeExpired(now);
         EduroamLoginTicket ticket = tickets.save(new EduroamLoginTicket(
                 newTicketId(), saved.email(), saved.identity(), saved.account(), state,
                 EduroamLoginProvider.PROVIDER_TYPE, now + TICKET_TTL_MILLIS, now));
-        return assembler.toLoginResultDTO(ticket);
+        return assembler.toLoginResultDTO(ticket, registrationRequired, false);
+    }
+
+    /** 校园认证成功后设置本站密码；邮箱、用户名来自票据，不能由浏览器指定。 */
+    public EduroamLoginResultDTO register(EduroamRegisterCmd cmd, String clientIp) {
+        if (cmd == null) {
+            throw new IllegalArgumentException("请先完成 Eduroam 认证");
+        }
+        // 可修正的输入错误不消耗认证证明。
+        EduroamSitePassword.validate(cmd.password(), cmd.confirmPassword());
+        EduroamLoginTicket proof = consumeTicket(cmd.ticket(), cmd.state(), EduroamLoginProvider.PROVIDER_TYPE);
+        boolean created = false;
+        if (!localUsers.existsByEmail(proof.email())) {
+            localUsers.create(proof.email(), cmd.password());
+            created = true;
+            recordAttempt(proof.email(), proof.identity(), proof.account(),
+                    EduroamIdentity.resolve(proof.identity(), settings()).domain(), true,
+                    "ACCOUNT_CREATED", "", "校园认证通过，已创建本站账号", clientIp, 0L, clock.getAsLong());
+        }
+        // 旧票据已核销；新票据仅供宿主回调，不延长原校园认证的有效期。
+        EduroamLoginTicket next = tickets.save(new EduroamLoginTicket(newTicketId(), proof.email(),
+                proof.identity(), proof.account(), proof.state(), proof.platformType(),
+                proof.expiresAt(), proof.createdAt()));
+        return assembler.toLoginResultDTO(next, false, created);
     }
 
     /**
@@ -226,6 +252,19 @@ public class EduroamAppService {
         }
         if (!ticket.matchesType(platformType)) {
             throw new IllegalArgumentException("登录方式不匹配，请返回登录页重试");
+        }
+        EduroamSettings current = settings();
+        if (!current.enabled()) {
+            throw new IllegalArgumentException("Eduroam 登录当前未开放，请联系管理员");
+        }
+        EduroamIdentity identity = EduroamIdentity.resolve(ticket.identity(), current);
+        if (!identity.email().equals(ticket.email())) {
+            throw new IllegalArgumentException("学校或本站邮箱配置已变更，请重新认证");
+        }
+        EduroamAccount account = accounts.findByEmail(ticket.email())
+                .orElseThrow(() -> new IllegalArgumentException("账号记录已变更，请重新认证"));
+        if (!account.active()) {
+            throw new IllegalArgumentException("该 Eduroam 账号已被管理员禁止登录，请联系管理员");
         }
         return ticket;
     }

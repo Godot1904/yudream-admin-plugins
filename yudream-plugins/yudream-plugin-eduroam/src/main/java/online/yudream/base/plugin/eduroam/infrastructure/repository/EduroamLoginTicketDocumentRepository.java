@@ -40,8 +40,17 @@ public class EduroamLoginTicketDocumentRepository implements EduroamLoginTicketR
         }
         String key = id.trim();
         Optional<EduroamLoginTicket> found = documents.findById(COLLECTION, key).map(this::toTicket);
-        // 先读后删：读不到就没有可删的；读到就立刻删掉，保证同一个票据不可能被用第二次。
-        found.ifPresent(ticket -> documents.delete(COLLECTION, ticket.id()));
+        if (found.isEmpty() || found.get().createdAt() == Long.MAX_VALUE) {
+            return Optional.empty();
+        }
+        // 用所有旧票据都有的 createdAt 做原子核销标记，避免两节点先读后删同时成功。
+        // 若核销后进程退出，仍保留原 expiresAt 供清理；不支持 CAS 的宿主安全拒绝。
+        EduroamLoginTicket ticket = found.get();
+        if (!documents.updateIfFieldAtMost(COLLECTION, key, "createdAt", ticket.createdAt(),
+                Map.of("createdAt", Long.MAX_VALUE))) {
+            return Optional.empty();
+        }
+        documents.delete(COLLECTION, key);
         return found;
     }
 

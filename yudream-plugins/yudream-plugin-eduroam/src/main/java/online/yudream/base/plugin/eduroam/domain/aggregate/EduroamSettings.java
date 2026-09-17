@@ -24,7 +24,8 @@ public record EduroamSettings(
         String tutorialMarkdown
 ) {
 
-    public static final String DEFAULT_ENDPOINT = "https://eduroam.ustc.edu.cn/cgi-bin/eduroam-test.cgi";
+    public static final String DEFAULT_ENDPOINT = "https://analysis.eduroam.edu.cn/checkc/pkudetection";
+    private static final String LEGACY_ENDPOINT = "https://eduroam.ustc.edu.cn/cgi-bin/eduroam-test.cgi";
     public static final int MAX_DOMAIN_LENGTH = 120;
     private static final int MAX_TUTORIAL_LENGTH = 4000;
     private static final int MAX_ENDPOINT_LENGTH = 500;
@@ -126,6 +127,11 @@ public record EduroamSettings(
             return DEFAULT_ENDPOINT;
         }
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            return DEFAULT_ENDPOINT;
+        }
+        // 已保存的旧默认配置也在读取时迁移；其他自定义认证服务继续保留。
+        if (LEGACY_ENDPOINT.equalsIgnoreCase(trimmed)
+                || LEGACY_ENDPOINT.replace("https://", "http://").equalsIgnoreCase(trimmed)) {
             return DEFAULT_ENDPOINT;
         }
         return trimmed;

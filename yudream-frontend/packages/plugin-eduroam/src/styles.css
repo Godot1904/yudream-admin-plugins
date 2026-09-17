@@ -25,6 +25,18 @@
   color: var(--color-text-1);
 }
 
+.eduroam-account-addon {
+  min-width: 0;
+  max-width: 50%;
+}
+
+.eduroam-account-suffix {
+  overflow: hidden;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .eduroam-help {
   font-size: 0.75rem;
   line-height: 1.5;
