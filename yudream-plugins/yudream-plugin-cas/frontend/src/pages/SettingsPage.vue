@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { SsoSettings, StudentMapping } from '../types'
+import type { AccessControl, SsoSettings } from '../types'
 import { FaAlert, FaButton, FaCard, FaIcon, FaInput, FaLabel, FaPageHeader, FaPageMain, FaSelect, FaSwitch, useFaToast } from '@yudream/components'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { createCasApi } from '../api/cas-api'
@@ -14,20 +14,15 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const registering = ref(false)
-const mappingLoading = ref(false)
-const mappingSaving = ref(false)
+const accessLoading = ref(false)
+const accessSaving = ref(false)
 const error = ref('')
 const testMessage = ref('')
 const testOk = ref<boolean | null>(null)
 const clientSecret = ref('')
 
-const mapping = reactive<StudentMapping>({
+const access = reactive<AccessControl>({
   requireBinding: false,
-  nameKey: '',
-  deptKey: '',
-  majorKey: '',
-  gradeKey: '',
-  classKey: '',
 })
 
 const form = reactive<SsoSettings>({
@@ -166,36 +161,36 @@ async function registerOidc() {
   }
 }
 
-async function loadMapping() {
-  mappingLoading.value = true
+async function loadAccess() {
+  accessLoading.value = true
   try {
-    Object.assign(mapping, await api.mapping())
+    Object.assign(access, await api.accessControl())
   }
   catch (caught) {
-    toast.error(errorMessage(caught, '加载学生信息映射失败'))
+    toast.error(errorMessage(caught, '加载访问控制配置失败'))
   }
   finally {
-    mappingLoading.value = false
+    accessLoading.value = false
   }
 }
 
-async function saveMapping() {
-  mappingSaving.value = true
+async function saveAccess() {
+  accessSaving.value = true
   try {
-    Object.assign(mapping, await api.saveMapping({ ...mapping }))
-    toast.success(mapping.requireBinding ? '已开启：未绑定统一身份认证的成员将无法使用其他功能' : '已关闭绑定门禁')
+    Object.assign(access, await api.saveAccessControl({ ...access }))
+    toast.success(access.requireBinding ? '已开启：未绑定统一身份认证的成员将无法使用其他功能' : '已关闭绑定门禁')
   }
   catch (caught) {
-    toast.error(errorMessage(caught, '保存映射配置失败'))
+    toast.error(errorMessage(caught, '保存访问控制配置失败'))
   }
   finally {
-    mappingSaving.value = false
+    accessSaving.value = false
   }
 }
 
 onMounted(() => {
   load()
-  loadMapping()
+  loadAccess()
 })
 </script>
 
@@ -345,52 +340,23 @@ onMounted(() => {
           </p>
         </FaCard>
 
-        <FaCard title="访问控制与学生信息映射" description="登录时把认证属性归档为学生信息（可在「学生信息」页查看，含每个学工号绑定的本站账号）；绑定门禁开启后，未绑定统一身份认证的成员会被引导完成绑定。" content-class="tsu-card-content">
+        <FaCard title="访问控制" description="绑定门禁开启后，未绑定统一身份认证的成员会被引导完成绑定。" content-class="tsu-card-content">
           <div class="tsu-switch-row">
-            <FaSwitch v-model="mapping.requireBinding" />
+            <FaSwitch v-model="access.requireBinding" />
             <div class="tsu-switch-copy">
               <strong>未绑定则限制使用其他功能</strong>
               <small>仅在前端界面强制；管理员（持有本插件管理权限）始终豁免，登录入口未就绪时自动失效。</small>
             </div>
           </div>
-          <div class="tsu-settings-grid">
-            <FaLabel label="姓名字段键" class="tsu-field">
-              <FaInput v-model="mapping.nameKey" class="w-full" maxlength="60" placeholder="留空自动探测（name / cn / displayName）" :disabled="mappingLoading" />
-            </FaLabel>
-            <FaLabel label="学院字段键" class="tsu-field">
-              <FaInput v-model="mapping.deptKey" class="w-full" maxlength="60" placeholder="留空自动探测（department / org_dn / ou …）" :disabled="mappingLoading" />
-            </FaLabel>
-            <FaLabel label="专业字段键" class="tsu-field">
-              <FaInput v-model="mapping.majorKey" class="w-full" maxlength="60" placeholder="留空自动探测（major / subject …）" :disabled="mappingLoading" />
-            </FaLabel>
-            <FaLabel label="年级字段键" class="tsu-field">
-              <FaInput v-model="mapping.gradeKey" class="w-full" maxlength="60" placeholder="留空自动探测（grade / entranceYear …）" :disabled="mappingLoading" />
-            </FaLabel>
-            <FaLabel label="班级字段键" class="tsu-field">
-              <FaInput v-model="mapping.classKey" class="w-full" maxlength="60" placeholder="留空自动探测（className / class / clazz …）" :disabled="mappingLoading" />
-            </FaLabel>
-          </div>
-          <div class="tsu-mapping-guide">
-            <p class="tsu-field-hint">
-              <strong>字段对照</strong>（学生档案插件的四个字段：姓名 / 学号 / 班级 / 学院，预填表单见「我的档案」）：
-            </p>
-            <ul class="tsu-mapping-guide__list">
-              <li><code>姓名</code> ← 姓名字段键。留空即自动探测（<code>name</code> / <code>cn</code> / <code>displayName</code>），学校返回 <code>cn</code> 时无需填写。</li>
-              <li><code>学号</code> ← 认证中心返回的账号（CAS 的 <code>&lt;cas:user&gt;</code>），<strong>不需要配置</strong>；学生档案、绑定记录都以它为主键。</li>
-              <li><code>学院</code> ← 学院字段键。认证中心未返回学院字段时留空，由成员在预填表单里补填。</li>
-              <li><code>班级</code> ← 班级字段键。同上，未返回时留空。</li>
-              <li><code>专业 / 年级</code> ← 只归档到「学生信息」页，学生档案插件不使用。</li>
-            </ul>
-            <p class="tsu-field-hint">
-              若「学生信息」页里显示的学工号不是学号，说明学校把非学号放进了 <code>&lt;cas:user&gt;</code>，
-              此时不能靠字段键修正，需要在插件侧改为从属性键取值（例如 <code>uid</code> / <code>account</code>）。
-            </p>
-          </div>
+          <p class="tsu-field-hint">
+            本插件<strong>不再维护认证属性到学生档案的映射</strong>，也不向学生档案插件（<code>yudream-student-info</code>）写入任何信息：
+            「学生信息」页只按学号归档认证身份（姓名 / 邮箱 / 电话，字段由认证中心自动识别），
+            学院与班级一律从学生档案插件只读获取。
+          </p>
           <div class="tsu-actions">
-            <FaButton type="button" :loading="mappingSaving" :disabled="mappingLoading" @click="saveMapping">
-              保存映射配置
+            <FaButton type="button" :loading="accessSaving" :disabled="accessLoading" @click="saveAccess">
+              保存访问控制
             </FaButton>
-            <span class="tsu-field-hint">学校实际返回的属性键名可在「学生信息 → 详情 → 原始属性」中核对。</span>
           </div>
         </FaCard>
 

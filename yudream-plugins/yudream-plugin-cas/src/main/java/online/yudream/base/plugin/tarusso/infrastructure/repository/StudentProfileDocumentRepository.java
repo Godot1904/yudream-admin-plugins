@@ -64,7 +64,7 @@ public final class StudentProfileDocumentRepository implements StudentProfileRep
     }
 
     /**
-     * 关键词搜索：分页扫描集合并做内存过滤（学号/姓名/学院/专业/年级/班级包含匹配）。
+     * 关键词搜索：分页扫描集合并做内存过滤（学号/姓名/邮箱/电话包含匹配）。
      * 上限 MAX_SCAN_PAGES * SCAN_PAGE_SIZE 条，超出部分不参与搜索。
      */
     @Override
@@ -95,10 +95,8 @@ public final class StudentProfileDocumentRepository implements StudentProfileRep
     private static boolean matches(StudentProfile profile, String needle) {
         return contains(profile.socialUid(), needle)
                 || contains(profile.name(), needle)
-                || contains(profile.dept(), needle)
-                || contains(profile.major(), needle)
-                || contains(profile.grade(), needle)
-                || contains(profile.className(), needle);
+                || contains(profile.email(), needle)
+                || contains(profile.phone(), needle);
     }
 
     private static boolean contains(String value, String needle) {
@@ -116,10 +114,6 @@ public final class StudentProfileDocumentRepository implements StudentProfileRep
         return new StudentProfile(
                 orEmpty(DocValues.string(document, "socialUid")),
                 orEmpty(DocValues.string(document, "name")),
-                orEmpty(DocValues.string(document, "dept")),
-                orEmpty(DocValues.string(document, "major")),
-                orEmpty(DocValues.string(document, "grade")),
-                orEmpty(DocValues.string(document, "className")),
                 orEmpty(DocValues.string(document, "email")),
                 orEmpty(DocValues.string(document, "phone")),
                 orEmpty(DocValues.string(document, "protocol")),

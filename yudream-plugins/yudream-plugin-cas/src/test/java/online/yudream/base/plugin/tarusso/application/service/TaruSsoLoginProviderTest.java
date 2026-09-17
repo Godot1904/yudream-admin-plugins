@@ -124,7 +124,6 @@ class TaruSsoLoginProviderTest {
 
     private static StudentInfoService studentInfo() {
         return new StudentInfoService(
-                new online.yudream.base.plugin.tarusso.infrastructure.repository.StudentMappingDocumentRepository(new MemoryDocuments()),
                 new online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfileDocumentRepository(new MemoryDocuments())
         );
     }

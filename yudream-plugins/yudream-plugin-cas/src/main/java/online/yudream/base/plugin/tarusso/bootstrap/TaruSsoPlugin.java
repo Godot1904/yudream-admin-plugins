@@ -10,14 +10,16 @@ import online.yudream.base.plugin.spi.core.YuDreamPlugin;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginProvider;
 import online.yudream.base.plugin.spi.system.user.PluginUserService;
 import online.yudream.base.plugin.spi.widget.PluginGlobalWidget;
+import online.yudream.base.plugin.tarusso.application.service.AccessControlService;
 import online.yudream.base.plugin.tarusso.application.service.BindingQueryService;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
 import online.yudream.base.plugin.tarusso.application.service.TaruSsoLoginProvider;
+import online.yudream.base.plugin.tarusso.infrastructure.archive.StudentArchiveQueryFactory;
 import online.yudream.base.plugin.tarusso.infrastructure.cas.CasProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.oidc.OidcProtocolClient;
+import online.yudream.base.plugin.tarusso.infrastructure.repository.AccessControlDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.SsoSettingsDocumentRepository;
-import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentMappingDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfileDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.secret.ClientSecretStore;
 import online.yudream.base.plugin.tarusso.interfaces.controller.TaruSsoAdminController;
@@ -27,7 +29,7 @@ import online.yudream.base.plugin.tarusso.interfaces.http.TaruSsoHttpFacade;
         code = TaruSsoPlugin.CODE,
         name = "CAS 统一身份认证",
         version = TaruSsoPlugin.VERSION,
-        description = "接入 Apereo CAS / OIDC 统一身份认证，作为站点第三方登录提供方；支持学生信息映射与未绑定访问门禁",
+        description = "接入 Apereo CAS / OIDC 统一身份认证，作为站点第三方登录提供方；支持绑定情况查看与未绑定访问门禁",
         icon = "i-ri:graduation-cap-line"
 )
 @PluginPermissions({
@@ -35,7 +37,7 @@ import online.yudream.base.plugin.tarusso.interfaces.http.TaruSsoHttpFacade;
                 code = TaruSsoPlugin.MANAGE_PERMISSION,
                 name = "管理 CAS 单点登录",
                 module = "CAS 单点登录",
-                description = "维护 CAS/OIDC 协议、回调地址、客户端凭据与学生信息映射"
+                description = "维护 CAS/OIDC 协议、回调地址、客户端凭据与绑定访问控制"
         )
 })
 @PluginFrontend(
@@ -68,8 +70,10 @@ import online.yudream.base.plugin.tarusso.interfaces.http.TaruSsoHttpFacade;
 public final class TaruSsoPlugin implements YuDreamPlugin {
 
     public static final String CODE = "cas";
-    public static final String VERSION = "1.1.0";
+    public static final String VERSION = "2.0.0";
     public static final String MANAGE_PERMISSION = "plugin:cas:manage";
+    /** 学生档案插件 code：学院 / 班级等信息的唯一来源（软依赖，只读）。 */
+    public static final String STUDENT_INFO_CODE = "yudream-student-info";
 
     @Override
     public void onEnable(PluginContext context) {
@@ -82,17 +86,18 @@ public final class TaruSsoPlugin implements YuDreamPlugin {
                 new OidcProtocolClient()
         );
         StudentInfoService studentInfo = new StudentInfoService(
-                new StudentMappingDocumentRepository(context.documents()),
                 new StudentProfileDocumentRepository(context.documents()),
-                new BindingQueryService(pluginUserService(context), CODE)
+                new BindingQueryService(pluginUserService(context), CODE),
+                StudentArchiveQueryFactory.create(context, STUDENT_INFO_CODE)
         );
-        TaruSsoHttpFacade http = new TaruSsoHttpFacade(settings, studentInfo);
+        AccessControlService accessControl = new AccessControlService(
+                new AccessControlDocumentRepository(context.documents())
+        );
+        TaruSsoHttpFacade http = new TaruSsoHttpFacade(settings, studentInfo, accessControl);
         context.registerHttpController(new TaruSsoAdminController(http));
         context.registerExtension(PluginExternalLoginProvider.class, new TaruSsoLoginProvider(settings, studentInfo));
         // 全站绑定门禁挂件：未绑定 CAS 的用户在开启开关后被引导完成绑定（组件 key = cas/Gate）
         context.registerGlobalWidget(new PluginGlobalWidget("cas-binding-gate", "cas/Gate", "", 900));
-        // 学生档案预填挂件：已绑定且尚未填写学生档案时，用 CAS 属性预填 yudream-student-info 的表单（组件 key = cas/Prefill）
-        context.registerGlobalWidget(new PluginGlobalWidget("cas-student-prefill", "cas/Prefill", "", 901));
     }
 
     /**

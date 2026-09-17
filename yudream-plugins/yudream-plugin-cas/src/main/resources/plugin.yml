@@ -4,3 +4,5 @@ description: 接入 Apereo CAS / OIDC 统一身份认证，作为站点第三方
 icon: i-ri:graduation-cap-line
 main: online.yudream.base.plugin.tarusso.bootstrap.TaruSsoPlugin
 version: "${project.version}"
+softdepend:
+  - yudream-student-info

@@ -2,7 +2,7 @@
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { StudentProfile } from '../types'
 import { FaAlert, FaButton, FaCard, FaDrawer, FaIcon, FaInput, FaPageHeader, FaPageMain, FaPagination, FaTag, useFaToast } from '@yudream/components'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { createCasApi } from '../api/cas-api'
 import { errorMessage } from '../types'
 
@@ -18,24 +18,13 @@ const items = ref<StudentProfile[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = ref(20)
+const archiveAvailable = ref(true)
 
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref<StudentProfile | null>(null)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
-
-/** 本页绑定统计：已绑定数量；宿主不支持查询时不展示统计，避免误导。 */
-const boundCount = computed(() => items.value.filter(row => row.binding?.bound).length)
-const bindingQueryable = computed(() => items.value.some(row => row.binding?.available))
-
-function bindingLabel(row: StudentProfile) {
-  const binding = row.binding
-  if (binding?.bound) {
-    return binding.username || binding.nickname || binding.userId || '已绑定'
-  }
-  return ''
-}
 
 const rawAttributesJson = computed(() => {
   if (!detail.value?.rawAttributes) {
@@ -49,11 +38,33 @@ const rawAttributesJson = computed(() => {
   }
 })
 
-function formatTime(value: number) {
-  if (!value) {
+/** 本页绑定统计：已绑定数量；宿主不支持查询时不展示统计，避免误导。 */
+const boundCount = computed(() => items.value.filter(row => row.binding?.bound).length)
+const bindingQueryable = computed(() => items.value.some(row => row.binding?.available))
+
+function bindingLabel(row: StudentProfile) {
+  const binding = row.binding
+  if (binding?.bound) {
+    return binding.username || binding.nickname || binding.userId || '已绑定'
+  }
+  return ''
+}
+
+/** 学院 / 班级来自学生档案插件；对方不可用或该学号未填写时显示 —。 */
+function archiveValue(row: StudentProfile, key: 'college' | 'className') {
+  return row.archive?.filled ? (row.archive[key] || '—') : '—'
+}
+
+function formatTime(value: number | string) {
+  if (value === null || value === undefined || value === '') {
     return '—'
   }
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  // 宿主会把 Long 序列化成字符串，必须先转数字，否则 Invalid Date
+  const timestamp = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return '—'
+  }
+  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
 }
 
 async function load() {
@@ -63,6 +74,7 @@ async function load() {
     const result = await api.students(page.value, size.value, searchApplied.value.trim() || undefined)
     items.value = result.items || []
     total.value = result.total || 0
+    archiveAvailable.value = result.archiveAvailable !== false
     if (page.value > 1 && items.value.length === 0) {
       page.value = 1
       return load()
@@ -121,7 +133,7 @@ onMounted(load)
 
 <template>
   <section class="tsu-page">
-    <FaPageHeader title="学生信息" description="成员通过 CAS / OIDC 登录后自动归档的认证属性，并显示每个学工号绑定的本站账号；字段映射可在「认证设置」里调整。">
+    <FaPageHeader title="学生信息" description="统一身份认证登录后自动归档的认证身份（学号 / 姓名），并显示该学号在本站的账号绑定与学生档案里的学院、班级。">
       <FaButton variant="outline" :loading="loading" @click="load">
         <FaIcon name="i-ri:refresh-line" />
         刷新
@@ -141,7 +153,7 @@ onMounted(load)
           <div class="tsu-search">
             <FaInput
               v-model="keyword"
-              placeholder="搜索学工号 / 姓名 / 学院 / 专业 / 班级"
+              placeholder="搜索学工号 / 姓名 / 邮箱 / 电话"
               maxlength="60"
               @keydown.enter.prevent="search"
             />
@@ -157,6 +169,10 @@ onMounted(load)
           <span v-if="bindingQueryable" class="tsu-field-hint">本页已绑定 {{ boundCount }} / {{ items.length }}</span>
         </form>
 
+        <p v-if="!archiveAvailable" class="tsu-field-hint">
+          未安装或未启用学生档案插件（yudream-student-info），学院 / 班级列暂时为空；安装后自动读取。
+        </p>
+
         <div class="tsu-table-wrap">
           <table class="tsu-table">
             <thead>
@@ -165,8 +181,6 @@ onMounted(load)
                 <th>绑定账号</th>
                 <th>姓名</th>
                 <th>学院</th>
-                <th>专业</th>
-                <th>年级</th>
                 <th>班级</th>
                 <th>登录次数</th>
                 <th>最近登录</th>
@@ -175,13 +189,13 @@ onMounted(load)
             </thead>
             <tbody>
               <tr v-if="loading && items.length === 0">
-                <td colspan="10" class="tsu-table-empty">
+                <td colspan="8" class="tsu-table-empty">
                   加载中…
                 </td>
               </tr>
               <tr v-else-if="items.length === 0">
-                <td colspan="10" class="tsu-table-empty">
-                  暂无数据：成员通过 CAS 登录一次后，认证属性会自动出现在这里。
+                <td colspan="8" class="tsu-table-empty">
+                  暂无数据：成员通过 CAS 登录一次后，认证身份会自动出现在这里。
                 </td>
               </tr>
               <tr v-for="row in items" v-else :key="row.socialUid">
@@ -192,10 +206,8 @@ onMounted(load)
                   <span v-else class="tsu-table-time">未绑定</span>
                 </td>
                 <td>{{ row.name || '—' }}</td>
-                <td>{{ row.dept || '—' }}</td>
-                <td>{{ row.major || '—' }}</td>
-                <td>{{ row.grade || '—' }}</td>
-                <td>{{ row.className || '—' }}</td>
+                <td>{{ archiveValue(row, 'college') }}</td>
+                <td>{{ archiveValue(row, 'className') }}</td>
                 <td>{{ row.loginCount }}</td>
                 <td class="tsu-table-time">{{ formatTime(row.lastSeenAt) }}</td>
                 <td>
@@ -229,14 +241,6 @@ onMounted(load)
           <dd class="tsu-table-mono">{{ detail.socialUid }}</dd>
           <dt>姓名</dt>
           <dd>{{ detail.name || '—' }}</dd>
-          <dt>学院</dt>
-          <dd>{{ detail.dept || '—' }}</dd>
-          <dt>专业</dt>
-          <dd>{{ detail.major || '—' }}</dd>
-          <dt>年级</dt>
-          <dd>{{ detail.grade || '—' }}</dd>
-          <dt>班级</dt>
-          <dd>{{ detail.className || '—' }}</dd>
           <dt>邮箱</dt>
           <dd>{{ detail.email || '—' }}</dd>
           <dt>电话</dt>
@@ -250,6 +254,27 @@ onMounted(load)
           <dt>最近登录</dt>
           <dd class="tsu-table-time">{{ formatTime(detail.lastSeenAt) }}</dd>
         </dl>
+
+        <div class="tsu-raw">
+          <p class="tsu-field-hint">
+            学生档案（来自 yudream-student-info 插件，本插件只读、不写入）：学院与班级以那里的记录为准。
+          </p>
+          <dl v-if="detail.archive?.filled" class="tsu-detail-grid">
+            <dt>姓名</dt>
+            <dd>{{ detail.archive.studentName || '—' }}</dd>
+            <dt>学院</dt>
+            <dd>{{ detail.archive.college || '—' }}</dd>
+            <dt>班级</dt>
+            <dd>{{ detail.archive.className || '—' }}</dd>
+          </dl>
+          <p v-else-if="detail.archive && !detail.archive.available" class="tsu-field-hint">
+            {{ detail.archive.message || '未安装学生档案插件' }}
+          </p>
+          <p v-else class="tsu-table-empty">
+            该学号尚未在学生档案插件里填写学院 / 班级。
+          </p>
+        </div>
+
         <div class="tsu-raw">
           <p class="tsu-field-hint">
             本站账号绑定：宿主 external account 表里 (登录通道, 协议, 学工号) 命中的那条绑定记录。
@@ -275,9 +300,10 @@ onMounted(load)
             该学工号尚未绑定本站账号。
           </p>
         </div>
+
         <div class="tsu-raw">
           <p class="tsu-field-hint">
-            认证中心返回的原始属性。若上方字段为空，可在此核对实际键名后到「认证设置 → 学生信息映射」指定对应键。
+            认证中心返回的原始属性，用于核对学校到底返回了哪些字段。
           </p>
           <pre v-if="rawAttributesJson" class="tsu-raw-json">{{ rawAttributesJson }}</pre>
           <p v-else class="tsu-table-empty">

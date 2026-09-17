@@ -34,14 +34,14 @@ public final class TaruSsoAdminController {
         return http.registerOidc(request);
     }
 
-    @PluginHttpEndpoint(method = "GET", path = "/admin/mapping", permission = TaruSsoPlugin.MANAGE_PERMISSION)
-    public PluginHttpResponse mapping() {
-        return http.mapping();
+    @PluginHttpEndpoint(method = "GET", path = "/admin/access-control", permission = TaruSsoPlugin.MANAGE_PERMISSION)
+    public PluginHttpResponse accessControl() {
+        return http.accessControl();
     }
 
-    @PluginHttpEndpoint(method = "PUT", path = "/admin/mapping", permission = TaruSsoPlugin.MANAGE_PERMISSION)
-    public PluginHttpResponse saveMapping(PluginHttpRequest request) {
-        return http.saveMapping(request);
+    @PluginHttpEndpoint(method = "PUT", path = "/admin/access-control", permission = TaruSsoPlugin.MANAGE_PERMISSION)
+    public PluginHttpResponse saveAccessControl(PluginHttpRequest request) {
+        return http.saveAccessControl(request);
     }
 
     @PluginHttpEndpoint(method = "GET", path = "/admin/students", permission = TaruSsoPlugin.MANAGE_PERMISSION)
@@ -58,12 +58,6 @@ public final class TaruSsoAdminController {
     @PluginHttpEndpoint(method = "GET", path = "/public/gate")
     public PluginHttpResponse gate() {
         return http.gate();
-    }
-
-    /** 公开端点（permission 为空，但要求已登录）：绑定成功后按学工号取档案预填字段。 */
-    @PluginHttpEndpoint(method = "GET", path = "/me/profile")
-    public PluginHttpResponse myProfile(PluginHttpRequest request) {
-        return http.myProfile(request);
     }
 
     /**

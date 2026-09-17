@@ -6,15 +6,19 @@ import online.yudream.base.plugin.spi.system.secret.PluginSecretStore;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 import online.yudream.base.plugin.spi.system.user.PluginUserService;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
+import online.yudream.base.plugin.tarusso.application.service.AccessControlService;
 import online.yudream.base.plugin.tarusso.application.service.BindingQueryService;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
+import online.yudream.base.plugin.tarusso.domain.aggregate.AccessControl;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
-import online.yudream.base.plugin.tarusso.domain.aggregate.StudentMapping;
+import online.yudream.base.plugin.tarusso.domain.aggregate.StudentArchive;
+import online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol;
+import online.yudream.base.plugin.tarusso.domain.service.StudentArchiveQuery;
 import online.yudream.base.plugin.tarusso.infrastructure.cas.CasProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.oidc.OidcProtocolClient;
+import online.yudream.base.plugin.tarusso.infrastructure.repository.AccessControlDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.SsoSettingsDocumentRepository;
-import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentMappingDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.repository.StudentProfileDocumentRepository;
 import online.yudream.base.plugin.tarusso.infrastructure.secret.ClientSecretStore;
 import org.junit.jupiter.api.Test;
@@ -46,7 +50,7 @@ class TaruSsoHttpFacadeTest {
     void gateRequiresLoginReady() {
         Env env = new Env();
         // 未保存设置 → loginEnabled=false，开关即使打开也不生效
-        env.studentInfo.saveMapping(new StudentMapping(true, "", "", "", "", ""));
+        env.accessControl.save(new AccessControl(true));
         assertEquals(false, gate(env.facade).get("requireBinding"));
 
         env.settings.save(casReady(), null);
@@ -54,30 +58,23 @@ class TaruSsoHttpFacadeTest {
     }
 
     @Test
-    void mappingSaveMergesPartialBody() {
+    void accessControlSaveMergesPartialBody() {
         Env env = new Env();
-        env.facade.saveMapping(request("""
-                {"requireBinding": true, "nameKey": "cn"}
+        env.facade.saveAccessControl(request("""
+                {"requireBinding": true}
                 """));
-        Map<String, Object> mapping = body(env.facade.mapping());
-        assertEquals(true, mapping.get("requireBinding"));
-        assertEquals("cn", mapping.get("nameKey"));
-        assertEquals("", mapping.get("deptKey"));
+        assertEquals(true, body(env.facade.accessControl()).get("requireBinding"));
 
-        // 只更新开关，键保留
-        env.facade.saveMapping(request("""
-                {"requireBinding": false}
-                """));
-        Map<String, Object> updated = body(env.facade.mapping());
-        assertEquals(false, updated.get("requireBinding"));
-        assertEquals("cn", updated.get("nameKey"));
+        // 只更新开关：空 body 保留原值
+        env.facade.saveAccessControl(request("{}"));
+        assertEquals(true, body(env.facade.accessControl()).get("requireBinding"));
     }
 
     @Test
     void studentsPageParsesQueryAndValidates() {
         Env env = new Env();
-        env.studentInfo.record(identity("20230101", "张三", Map.of("cn", "张三", "className", "计算机23-1班")), online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
-        env.studentInfo.record(identity("20230102", "李四", Map.of("cn", "李四")), online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
+        env.studentInfo.record(identity("20230101", "张三", Map.of("cn", "张三", "mail", "zhang@taru.edu.cn")), SsoProtocol.CAS);
+        env.studentInfo.record(identity("20230102", "李四", Map.of("cn", "李四")), SsoProtocol.CAS);
 
         Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
         assertEquals(2L, page.get("total"));
@@ -85,9 +82,9 @@ class TaruSsoHttpFacadeTest {
         Map<String, Object> search = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10"), "keyword", List.of("李四")))));
         assertEquals(1L, search.get("total"));
 
-        // 班级关键词搜索
-        Map<String, Object> classSearch = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10"), "keyword", List.of("计算机")))));
-        assertEquals(1L, classSearch.get("total"));
+        // 认证属性里的学院/班级不再入库，也不参与搜索
+        Map<String, Object> mailSearch = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10"), "keyword", List.of("zhang@")))));
+        assertEquals(1L, mailSearch.get("total"));
 
         assertThrows(IllegalArgumentException.class, () -> env.facade.studentDetail(request(Map.of())));
         Map<String, Object> detail = body(env.facade.studentDetail(request(Map.of("socialUid", List.of("20230101")))));
@@ -95,28 +92,74 @@ class TaruSsoHttpFacadeTest {
     }
 
     @Test
-    void myProfileRequiresLoginAndReturnsPrefillFields() {
+    void studentsPageCarriesBoundLocalAccountAndStudentArchive() {
         Env env = new Env();
-        env.studentInfo.record(identity("20230101", "张三", Map.of(
-                "cn", "张三",
-                "department", "信息工程学院",
-                "className", "计算机23-1班"
-        )), online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
+        env.studentInfo.record(identity("20230106", "孙八", Map.of("cn", "孙八")), SsoProtocol.CAS);
+        env.users.bound.put("cas|cas|20230106", new online.yudream.base.plugin.spi.system.user.PluginUserProfile(
+                357806992028471296L, "godot", "Godot", "g@example.com", "13900000000", null, null, "NORMAL"));
+        env.archives.records.put("20230106", new StudentArchive("20230106", "孙八", "计算机23-1班", "信息工程学院"));
 
-        // 未登录（principal 为空）→ 报错
-        assertThrows(IllegalArgumentException.class,
-                () -> env.facade.myProfile(request(Map.of("socialUid", List.of("20230101")))));
+        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
+        assertEquals(true, page.get("archiveAvailable"));
+        Map<String, Object> item = firstItem(page);
 
-        // 已登录 → 返回预填字段
-        PluginHttpResponse response = env.facade.myProfile(loggedInRequest(Map.of("socialUid", List.of("20230101"))));
-        Map<String, Object> prefill = body(response);
-        assertEquals("20230101", prefill.get("studentNo"));
-        assertEquals("张三", prefill.get("studentName"));
-        assertEquals("信息工程学院", prefill.get("college"));
-        assertEquals("计算机23-1班", prefill.get("className"));
+        Map<String, Object> binding = mapOf(item, "binding");
+        assertEquals(true, binding.get("available"));
+        assertEquals(true, binding.get("bound"));
+        assertEquals("godot", binding.get("username"));
+        // Java Long 进 JSON 必须是字符串
+        assertEquals("357806992028471296", binding.get("userId"));
 
-        // 档案不存在 → 404
-        assertEquals(404, env.facade.myProfile(loggedInRequest(Map.of("socialUid", List.of("404")))).status());
+        Map<String, Object> archive = mapOf(item, "archive");
+        assertEquals(true, archive.get("filled"));
+        assertEquals("信息工程学院", archive.get("college"));
+        assertEquals("计算机23-1班", archive.get("className"));
+
+        Map<String, Object> detail = body(env.facade.studentDetail(request(Map.of("socialUid", List.of("20230106")))));
+        assertEquals("godot", mapOf(detail, "binding").get("username"));
+        assertEquals("计算机23-1班", mapOf(detail, "archive").get("className"));
+    }
+
+    @Test
+    void studentsPageShowsUnboundAccount() {
+        Env env = new Env();
+        env.studentInfo.record(identity("20230107", "周九", Map.of("cn", "周九")), SsoProtocol.CAS);
+
+        Map<String, Object> item = firstItem(body(
+                env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10"))))));
+
+        assertEquals(true, mapOf(item, "binding").get("available"));
+        assertEquals(false, mapOf(item, "binding").get("bound"));
+        assertEquals(false, mapOf(item, "archive").get("filled"));
+    }
+
+    @Test
+    void studentsPageDegradesWhenHostDoesNotSupportBindingLookup() {
+        Env env = new Env();
+        env.users.unsupported = true;
+        env.studentInfo.record(identity("20230103", "王五", Map.of("cn", "王五")), SsoProtocol.CAS);
+
+        // 宿主不支持查询时列表仍要正常返回，只在绑定字段上降级
+        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
+        assertEquals(1L, page.get("total"));
+        Map<String, Object> binding = mapOf(firstItem(page), "binding");
+        assertEquals(false, binding.get("available"));
+        assertEquals(false, binding.get("bound"));
+        assertTrue(String.valueOf(binding.get("message")).contains("宿主版本不支持"), String.valueOf(binding.get("message")));
+    }
+
+    @Test
+    void studentsPageDegradesWhenStudentArchivePluginMissing() {
+        Env env = new Env();
+        env.archiveAvailable = false;
+        env.studentInfo.record(identity("20230109", "郑十一", Map.of("cn", "郑十一")), SsoProtocol.CAS);
+
+        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
+        assertEquals(false, page.get("archiveAvailable"));
+        Map<String, Object> archive = mapOf(firstItem(page), "archive");
+        assertEquals(false, archive.get("available"));
+        assertEquals(false, archive.get("filled"));
+        assertTrue(String.valueOf(archive.get("message")).contains("学生档案插件"), String.valueOf(archive.get("message")));
     }
 
     @Test
@@ -170,63 +213,14 @@ class TaruSsoHttpFacadeTest {
         assertTrue(html.contains("location.replace"), html);
     }
 
-    @Test
-    void studentsPageCarriesBoundLocalAccount() {
-        Env env = new Env();
-        env.studentInfo.record(identity("20230101", "张三", Map.of("cn", "张三")),
-                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
-        env.users.bound.put("cas|cas|20230101", new online.yudream.base.plugin.spi.system.user.PluginUserProfile(
-                357806992028471296L, "godot", "Godot", "g@example.com", "13900000000", null, null, "NORMAL"));
-
-        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
-        Map<String, Object> binding = bindingOf(firstItem(page));
-        assertEquals(true, binding.get("available"));
-        assertEquals(true, binding.get("bound"));
-        assertEquals("godot", binding.get("username"));
-        // Java Long 进 JSON 必须是字符串
-        assertEquals("357806992028471296", binding.get("userId"));
-
-        Map<String, Object> detail = body(env.facade.studentDetail(request(Map.of("socialUid", List.of("20230101")))));
-        assertEquals("godot", bindingOf(detail).get("username"));
-    }
-
-    @Test
-    void studentsPageShowsUnboundAccount() {
-        Env env = new Env();
-        env.studentInfo.record(identity("20230102", "李四", Map.of("cn", "李四")),
-                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
-
-        Map<String, Object> binding = bindingOf(firstItem(body(
-                env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))))));
-
-        assertEquals(true, binding.get("available"));
-        assertEquals(false, binding.get("bound"));
-    }
-
-    @Test
-    void studentsPageDegradesWhenHostDoesNotSupportBindingLookup() {
-        Env env = new Env();
-        env.users.unsupported = true;
-        env.studentInfo.record(identity("20230103", "王五", Map.of("cn", "王五")),
-                online.yudream.base.plugin.tarusso.domain.enumerate.SsoProtocol.CAS);
-
-        // 宿主不支持查询时列表仍要正常返回，只在绑定字段上降级
-        Map<String, Object> page = body(env.facade.students(request(Map.of("page", List.of("1"), "size", List.of("10")))));
-        assertEquals(1L, page.get("total"));
-        Map<String, Object> binding = bindingOf(firstItem(page));
-        assertEquals(false, binding.get("available"));
-        assertEquals(false, binding.get("bound"));
-        assertTrue(String.valueOf(binding.get("message")).contains("宿主版本不支持"), String.valueOf(binding.get("message")));
-    }
-
     @SuppressWarnings("unchecked")
     private static Map<String, Object> firstItem(Map<String, Object> page) {
         return ((List<Map<String, Object>>) page.get("items")).get(0);
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> bindingOf(Map<String, Object> item) {
-        return (Map<String, Object>) item.get("binding");
+    private static Map<String, Object> mapOf(Map<String, Object> item, String key) {
+        return (Map<String, Object>) item.get(key);
     }
 
     @SuppressWarnings("unchecked")
@@ -241,16 +235,11 @@ class TaruSsoHttpFacadeTest {
     }
 
     private static PluginHttpRequest request(String body) {
-        return new PluginHttpRequest("PUT", "/api/plugins/cas/api/admin/mapping", Map.of(), Map.of(), body, null);
+        return new PluginHttpRequest("PUT", "/api/plugins/cas/api/admin/access-control", Map.of(), Map.of(), body, null);
     }
 
     private static PluginHttpRequest request(Map<String, List<String>> query) {
         return new PluginHttpRequest("GET", "/api/plugins/cas/api/admin/students", Map.of(), query, "", null);
-    }
-
-    private static PluginHttpRequest loggedInRequest(Map<String, List<String>> query) {
-        return new PluginHttpRequest("GET", "/api/plugins/cas/api/me/profile", Map.of(), query, "",
-                new online.yudream.base.plugin.spi.system.security.PluginPrincipal(1L, List.of()));
     }
 
     private static online.yudream.base.plugin.tarusso.domain.service.SsoProtocolClient.ExternalIdentity identity(String uid, String nickname, Map<String, String> attributes) {
@@ -282,18 +271,36 @@ class TaruSsoHttpFacadeTest {
     private static final class Env {
         final MemoryDocuments documents = new MemoryDocuments();
         final FakeUsers users = new FakeUsers();
+        final FakeArchives archives = new FakeArchives();
+        boolean archiveAvailable = true;
         final SettingsService settings = new SettingsService(
                 new SsoSettingsDocumentRepository(documents),
                 new ClientSecretStore(new MemorySecrets()),
                 new CasProtocolClient(),
                 new OidcProtocolClient()
         );
+        final AccessControlService accessControl = new AccessControlService(new AccessControlDocumentRepository(documents));
         final StudentInfoService studentInfo = new StudentInfoService(
-                new StudentMappingDocumentRepository(documents),
                 new StudentProfileDocumentRepository(documents),
-                new BindingQueryService(users.service(), "cas")
+                new BindingQueryService(users.service(), "cas"),
+                archives
         );
-        final TaruSsoHttpFacade facade = new TaruSsoHttpFacade(settings, studentInfo);
+        final TaruSsoHttpFacade facade = new TaruSsoHttpFacade(settings, studentInfo, accessControl);
+
+        /** 学生档案插件替身：archiveAvailable=false 模拟未安装（降级实现）。 */
+        final class FakeArchives implements StudentArchiveQuery {
+            final Map<String, StudentArchive> records = new ConcurrentHashMap<>();
+
+            @Override
+            public boolean available() {
+                return archiveAvailable;
+            }
+
+            @Override
+            public Optional<StudentArchive> findByStudentNo(String studentNo) {
+                return archiveAvailable ? Optional.ofNullable(records.get(studentNo)) : Optional.empty();
+            }
+        }
     }
 
     /** 宿主用户服务的可编程替身：只实现本测试用到的 findByExternalIdentity。 */

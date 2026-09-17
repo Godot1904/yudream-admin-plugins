@@ -3,15 +3,16 @@ package online.yudream.base.plugin.tarusso.interfaces.http;
 import online.yudream.base.plugin.spi.http.PluginHttpRequest;
 import online.yudream.base.plugin.spi.http.PluginHttpResponse;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
+import online.yudream.base.plugin.tarusso.application.service.AccessControlService;
 import online.yudream.base.plugin.tarusso.application.service.SettingsService;
 import online.yudream.base.plugin.tarusso.application.service.StudentInfoService;
+import online.yudream.base.plugin.tarusso.domain.aggregate.AccessControl;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
-import online.yudream.base.plugin.tarusso.domain.aggregate.StudentMapping;
 import online.yudream.base.plugin.tarusso.domain.service.SsoProtocolClient;
 import online.yudream.base.plugin.tarusso.infrastructure.support.JsonSupport;
+import online.yudream.base.plugin.tarusso.interfaces.request.AccessControlSaveRequest;
 import online.yudream.base.plugin.tarusso.interfaces.request.OidcRegisterRequest;
 import online.yudream.base.plugin.tarusso.interfaces.request.SettingsSaveRequest;
-import online.yudream.base.plugin.tarusso.interfaces.request.StudentMappingSaveRequest;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,10 +22,12 @@ public final class TaruSsoHttpFacade {
 
     private final SettingsService settings;
     private final StudentInfoService studentInfo;
+    private final AccessControlService accessControl;
 
-    public TaruSsoHttpFacade(SettingsService settings, StudentInfoService studentInfo) {
+    public TaruSsoHttpFacade(SettingsService settings, StudentInfoService studentInfo, AccessControlService accessControl) {
         this.settings = settings;
         this.studentInfo = studentInfo;
+        this.accessControl = accessControl;
     }
 
     public PluginHttpResponse settings() {
@@ -228,25 +231,20 @@ public final class TaruSsoHttpFacade {
         return PluginHttpResponse.ok(settings.registerOidcClient(body == null ? null : body.clientName()));
     }
 
-    public PluginHttpResponse mapping() {
-        return PluginHttpResponse.ok(mappingToMap(studentInfo.mapping()));
+    public PluginHttpResponse accessControl() {
+        return PluginHttpResponse.ok(accessControlToMap(accessControl.current()));
     }
 
-    public PluginHttpResponse saveMapping(PluginHttpRequest request) {
-        StudentMappingSaveRequest body = JsonSupport.read(request.body(), StudentMappingSaveRequest.class);
+    public PluginHttpResponse saveAccessControl(PluginHttpRequest request) {
+        AccessControlSaveRequest body = JsonSupport.read(request.body(), AccessControlSaveRequest.class);
         if (body == null) {
-            throw new IllegalArgumentException("映射配置不能为空");
+            throw new IllegalArgumentException("访问控制配置不能为空");
         }
-        StudentMapping current = studentInfo.mapping();
-        StudentMapping incoming = new StudentMapping(
-                body.requireBinding() == null ? current.requireBinding() : body.requireBinding(),
-                firstNonBlank(body.nameKey(), current.nameKey()),
-                firstNonBlank(body.deptKey(), current.deptKey()),
-                firstNonBlank(body.majorKey(), current.majorKey()),
-                firstNonBlank(body.gradeKey(), current.gradeKey()),
-                firstNonBlank(body.classKey(), current.classKey())
-        );
-        return PluginHttpResponse.ok(mappingToMap(studentInfo.saveMapping(incoming)));
+        AccessControl current = accessControl.current();
+        AccessControl incoming = body.requireBinding() == null
+                ? current
+                : current.withRequireBinding(body.requireBinding());
+        return PluginHttpResponse.ok(accessControlToMap(accessControl.save(incoming)));
     }
 
     public PluginHttpResponse students(PluginHttpRequest request) {
@@ -255,7 +253,11 @@ public final class TaruSsoHttpFacade {
         if (size < 1 || size > 100) {
             size = 20;
         }
-        return PluginHttpResponse.ok(studentInfo.page(page, size, queryParam(request, "keyword")));
+        Map<String, Object> view = studentInfo.page(page, size, queryParam(request, "keyword"));
+        Map<String, Object> result = new LinkedHashMap<>(view);
+        // 前端据此提示「学院 / 班级」来源：学生档案插件未安装时只显示 —
+        result.put("archiveAvailable", studentInfo.archiveAvailable());
+        return PluginHttpResponse.ok(result);
     }
 
     public PluginHttpResponse studentDetail(PluginHttpRequest request) {
@@ -275,39 +277,16 @@ public final class TaruSsoHttpFacade {
     public PluginHttpResponse gate() {
         boolean loginReady = settings.current().loginEnabled();
         Map<String, Object> gate = new LinkedHashMap<>();
-        gate.put("requireBinding", studentInfo.mapping().requireBinding() && loginReady);
+        gate.put("requireBinding", accessControl.requireBinding() && loginReady);
         gate.put("providerCode", "cas");
         gate.put("type", settings.current().protocol().typeCode());
         gate.put("displayName", settings.current().displayName());
         return PluginHttpResponse.ok(gate);
     }
 
-    /**
-     * 学生档案预填公开端点：已绑定 CAS 的登录用户按绑定记录里的学工号取预填字段，
-     * 前端据此把姓名/学号/学院（以及 CAS 提供时的班级）填进 yudream-student-info 插件的「我的档案」表单。
-     * <p>端点本身不设权限注解，但要求已登录（principal 存在），且只返回预填所需的最小字段集。</p>
-     */
-    public PluginHttpResponse myProfile(PluginHttpRequest request) {
-        if (request.principal() == null || request.principal().userId() == null) {
-            throw new IllegalArgumentException("请先登录");
-        }
-        String socialUid = queryParam(request, "socialUid");
-        if (socialUid == null) {
-            throw new IllegalArgumentException("缺少学工号参数");
-        }
-        return studentInfo.prefill(socialUid)
-                .map(PluginHttpResponse::ok)
-                .orElseGet(() -> PluginHttpResponse.rawJson(404, Map.of("message", "学生档案不存在")));
-    }
-
-    private static Map<String, Object> mappingToMap(StudentMapping mapping) {
+    private static Map<String, Object> accessControlToMap(AccessControl control) {
         Map<String, Object> view = new LinkedHashMap<>();
-        view.put("requireBinding", mapping.requireBinding());
-        view.put("nameKey", mapping.nameKey());
-        view.put("deptKey", mapping.deptKey());
-        view.put("majorKey", mapping.majorKey());
-        view.put("gradeKey", mapping.gradeKey());
-        view.put("classKey", mapping.classKey());
+        view.put("requireBinding", control.requireBinding());
         return view;
     }
 

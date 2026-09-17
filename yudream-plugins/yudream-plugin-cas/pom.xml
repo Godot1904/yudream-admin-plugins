@@ -7,7 +7,7 @@
     <!-- 独立单模块项目：不继承宿主或插件仓 parent，仅消费已安装到本地仓库的 SPI 契约 -->
     <groupId>online.yudream.plugins</groupId>
     <artifactId>yudream-plugin-cas</artifactId>
-    <version>1.1.0</version>
+    <version>2.0.0</version>
 
     <properties>
         <java.version>21</java.version>
@@ -16,6 +16,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- SPI 2.29.0：PluginUserService.findByExternalIdentity，用于管理端展示「学工号 → 本站账号」绑定 -->
         <yudream.plugin.spi.version>2.29.0</yudream.plugin.spi.version>
+        <!-- 学生档案插件（软依赖，只读）：与插件仓根 pom 的 yudream.plugin.student-info.version 保持一致 -->
+        <yudream.plugin.student-info.version>1.1.2</yudream.plugin.student-info.version>
         <jackson.version>2.20.0</jackson.version>
         <build.dir>${project.basedir}/target</build.dir>
     </properties>
@@ -53,6 +55,13 @@
             <groupId>online.yudream.base</groupId>
             <artifactId>yudream-plugin-spi</artifactId>
             <version>${yudream.plugin.spi.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- 学生档案插件只读 API：软依赖，未安装时插件主体照常运行（见 plugin.yml softdepend） -->
+        <dependency>
+            <groupId>online.yudream.plugins</groupId>
+            <artifactId>yudream-plugin-student-info</artifactId>
+            <version>${yudream.plugin.student-info.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

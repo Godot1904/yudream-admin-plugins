@@ -4,18 +4,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 学生信息档案：以学工号（socialUid）为主键，在每次 CAS/OIDC 登录交换时 upsert。
- * <p>字段值来自认证中心返回的属性，映射键见 {@link StudentMapping}；
- * rawAttributes 保留原始属性 JSON，便于管理员核对字段名后调整映射。</p>
+ * 学生信息档案：以学工号（socialUid，即认证中心返回的账号）为主键，在每次 CAS/OIDC 登录交换时 upsert。
+ *
+ * <p>学院 / 班级不再由本插件从认证属性映射或保存：本插件不向 yudream-student-info 插件写入任何信息，
+ * 学院与班级统一从学生档案插件按学号读取；档案只保留认证身份（姓名、邮箱、电话）与登录统计，
+ * rawAttributes 保留原始属性 JSON，便于管理员核对学校到底返回了什么。</p>
  */
 public final class StudentProfile {
 
     private final String socialUid;
     private final String name;
-    private final String dept;
-    private final String major;
-    private final String grade;
-    private final String className;
     private final String email;
     private final String phone;
     private final String protocol;
@@ -27,10 +25,6 @@ public final class StudentProfile {
     public StudentProfile(
             String socialUid,
             String name,
-            String dept,
-            String major,
-            String grade,
-            String className,
             String email,
             String phone,
             String protocol,
@@ -41,10 +35,6 @@ public final class StudentProfile {
     ) {
         this.socialUid = socialUid;
         this.name = name;
-        this.dept = dept;
-        this.major = major;
-        this.grade = grade;
-        this.className = className;
         this.email = email;
         this.phone = phone;
         this.protocol = protocol;
@@ -58,10 +48,6 @@ public final class StudentProfile {
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("socialUid", socialUid);
         document.put("name", name);
-        document.put("dept", dept);
-        document.put("major", major);
-        document.put("grade", grade);
-        document.put("className", className);
         document.put("email", email);
         document.put("phone", phone);
         document.put("protocol", protocol);
@@ -78,22 +64,6 @@ public final class StudentProfile {
 
     public String name() {
         return name;
-    }
-
-    public String dept() {
-        return dept;
-    }
-
-    public String major() {
-        return major;
-    }
-
-    public String grade() {
-        return grade;
-    }
-
-    public String className() {
-        return className;
     }
 
     public String email() {

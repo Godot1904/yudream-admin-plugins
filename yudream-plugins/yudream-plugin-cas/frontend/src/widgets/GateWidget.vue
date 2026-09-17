@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { GateConfig, HostExternalAccount } from '../types'
+import type { GateConfig } from '../types'
 import { FaButton, FaIcon } from '@yudream/components'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { createCasApi } from '../api/cas-api'
+
+/** 宿主 /api/user/me/external-accounts 返回的绑定记录（只用到判断是否绑定所需的字段）。 */
+interface HostExternalAccount {
+  providerCode?: string
+  platformType?: string
+}
 
 /**
  * 全站绑定门禁挂件（组件 key = cas/Gate，由 TaruSsoPlugin.registerGlobalWidget 注册）。

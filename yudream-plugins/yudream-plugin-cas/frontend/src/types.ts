@@ -31,14 +31,9 @@ export interface OidcRegisterResult {
   clientSecretIssued: boolean
 }
 
-/** 学生信息映射与访问控制配置（独立于 SsoSettings 存储）。 */
-export interface StudentMapping {
+/** 访问控制配置（独立于 SsoSettings 存储）：只剩「未绑定则限制使用其他功能」开关。 */
+export interface AccessControl {
   requireBinding: boolean
-  nameKey: string
-  deptKey: string
-  majorKey: string
-  gradeKey: string
-  classKey: string
 }
 
 /**
@@ -58,14 +53,23 @@ export interface ExternalBinding {
   status?: string
 }
 
-/** CAS/OIDC 登录时 upsert 的学生档案。 */
+/**
+ * 该学号在「学生档案」插件（yudream-student-info）里的记录（只读）。
+ * 学院 / 班级只从这里取；available=false 表示插件未安装或未启用。
+ */
+export interface StudentArchive {
+  available: boolean
+  filled: boolean
+  message?: string
+  studentName?: string
+  className?: string
+  college?: string
+}
+
+/** CAS/OIDC 登录时 upsert 的认证账号档案（学院/班级不在这里，见 StudentArchive）。 */
 export interface StudentProfile {
   socialUid: string
   name: string
-  dept: string
-  major: string
-  grade: string
-  className: string
   email: string
   phone: string
   protocol: string
@@ -73,8 +77,10 @@ export interface StudentProfile {
   firstSeenAt: number
   lastSeenAt: number
   loginCount: number
-  /** 该学工号绑定的本站账号（管理端列表/详情附加）。 */
+  /** 该学号绑定的本站账号（管理端列表/详情附加）。 */
   binding?: ExternalBinding
+  /** 该学号在学生档案插件里的记录（管理端列表/详情附加）。 */
+  archive?: StudentArchive
 }
 
 export interface StudentPage {
@@ -82,6 +88,8 @@ export interface StudentPage {
   total: number
   page: number
   size: number
+  /** 学生档案插件是否可用：false 时学院 / 班级列只显示 —。 */
+  archiveAvailable: boolean
 }
 
 /** 公开门禁配置：前端全局挂件读取。 */
@@ -90,23 +98,6 @@ export interface GateConfig {
   providerCode: string
   type: string
   displayName: string
-}
-
-/** 宿主 /api/user/me/external-accounts 返回的绑定记录（仅用到的字段）。 */
-export interface HostExternalAccount {
-  providerCode?: string
-  platformType?: string
-  socialUid?: string
-}
-
-/** /me/profile 返回的档案预填字段（最小字段集，不含邮箱/电话/原始属性）。 */
-export interface StudentPrefill {
-  studentNo: string
-  studentName: string
-  className: string
-  college: string
-  major: string
-  grade: string
 }
 
 export function errorMessage(error: unknown, fallback = '操作失败') {

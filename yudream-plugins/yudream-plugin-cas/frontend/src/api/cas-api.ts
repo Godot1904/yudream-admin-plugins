@@ -1,5 +1,5 @@
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { ConnectivityResult, GateConfig, OidcRegisterResult, SsoSettings, StudentMapping, StudentPage, StudentPrefill, StudentProfile } from '../types'
+import type { AccessControl, ConnectivityResult, GateConfig, OidcRegisterResult, SsoSettings, StudentPage, StudentProfile } from '../types'
 
 export function createCasApi(sdk: YuDreamPluginSdk) {
   const { http } = sdk
@@ -33,16 +33,14 @@ export function createCasApi(sdk: YuDreamPluginSdk) {
     test: () => http.post<ConnectivityResult>('/admin/test', {}),
     registerOidc: (clientName?: string) =>
       http.post<OidcRegisterResult>('/admin/oidc/register', { clientName }),
-    mapping: () => http.get<StudentMapping>('/admin/mapping'),
-    saveMapping: (data: StudentMapping) =>
-      http.request<StudentMapping>('/admin/mapping', { method: 'PUT', data }),
+    accessControl: () => http.get<AccessControl>('/admin/access-control'),
+    saveAccessControl: (data: AccessControl) =>
+      http.request<AccessControl>('/admin/access-control', { method: 'PUT', data }),
     students: (page: number, size: number, keyword?: string) =>
       http.get<StudentPage>(`/admin/students?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
     studentDetail: (socialUid: string) =>
       http.get<StudentProfile>(`/admin/students/detail?socialUid=${encodeURIComponent(socialUid)}`),
     gate: () => http.get<GateConfig>('/public/gate'),
-    myProfile: (socialUid: string) =>
-      http.get<StudentPrefill>(`/me/profile?socialUid=${encodeURIComponent(socialUid)}`),
   }
 }
 

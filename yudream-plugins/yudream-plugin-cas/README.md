@@ -3,25 +3,31 @@
 独立插件项目，不并入 `yudream-admin-plugins` 仓库，也不做 Git 提交。约定对齐插件仓 `AGENTS.md` 与宿主仓 SPI。
 
 - 插件 code：`cas`
-- 版本：`1.1.0`（v1.0.3 基线保留在 `../yudream-plugin-cas/`，已交付网信中心，不再改动）
+- 版本：`2.0.0`
 - 依赖宿主 SPI：`2.29.0`（`PluginExternalLoginProvider`、`PluginGlobalWidget`、`PluginUserService.findByExternalIdentity`）
-- 登录入口由宿主登录页 Tabs 渲染，插件贡献协议实现、管理设置页、学生信息页、绑定门禁挂件与学生档案预填挂件
+- 软依赖：`yudream-student-info`（只读，取学院 / 班级；未安装时相关列显示为空）
+- 登录入口由宿主登录页 Tabs 渲染，插件贡献协议实现、管理设置页、学生信息页与绑定门禁挂件
+
+## v2.0.0 破坏性变更
+
+1. **移除「学生信息映射」**：不再把认证属性映射成学院 / 专业 / 年级 / 班级，也**不向学生档案插件写入或预填任何信息**：
+   - 下线 `cas/Prefill`「完善学生档案」预填挂件与 `GET /api/plugins/cas/api/me/profile` 端点；
+   - 认证账号档案（collection `cas-students`）只保留认证身份与登录统计：学号、姓名、邮箱、电话、协议、原始属性、首次/最近登录、登录次数；
+   - 学院 / 班级改由「学生信息」页按学号从 `yudream-student-info` 插件**只读**获取（其 API `PluginStudentInfoService.findStudentInfoByStudentNo`），专业 / 年级列不再展示。
+2. **访问控制简化**：原 `requireBinding` 开关保留，端点由 `/admin/mapping` 改为 `/admin/access-control`（配置聚合 `StudentMapping` → `AccessControl`，collection `student-mapping` → `access-control`；旧配置不迁移，开关默认关闭）。
+3. **软依赖隔离**：provider 类型引用隔离在 `infrastructure/archive/StudentArchiveQueryFactory`，只在 `dependencyAvailable` 通过后实例化，未安装时不抛 `NoClassDefFoundError`。
+4. **修复**：「学生信息」页「首次记录 / 最近登录」显示 `Invalid Date`——宿主把 `Long` 序列化成字符串，前端未转换。
 
 ## v1.1.0 新增
 
-1. **管理端查看绑定信息**：「学生信息」页列表新增「绑定账号」列，详情抽屉新增绑定信息块（本站账号 / 用户 ID / 昵称 / 邮箱 / 手机 / 账号状态），管理员可直接核对「学工号 → 本站账号」。
-   - 数据来源：宿主 SPI 2.29.0 的 `PluginUserService.findByExternalIdentity(providerCode, platformType, socialUid)`，即宿主 external account 表里 (登录通道, 协议, 学工号) 命中的那条绑定；`platformType` 取学生档案自身记录的协议（CAS/OIDC），因此管理员中途切换协议后历史绑定仍能查到。
-   - 降级：宿主版本不支持该能力（默认实现抛 `UnsupportedOperationException`）、宿主未提供用户服务、或绑定指向的用户已不存在时，只把该列/该块显示为「无法查询」并附原因，列表、搜索、其他字段与预填功能照常可用（fail-open）。
-   - 只能看「学工号 → 本站账号」这一方向：SPI 没有「按本站账号列绑定」的契约，反向列表需宿主先发布对应SPI。
-2. **映射字段对照说明**：「认证设置 → 学生信息映射」新增字段对照，直接对齐学生档案插件的四个字段：
-   - `姓名` ← 姓名字段键（留空自动探测 `name` / `cn` / `displayName`）
-   - `学号` ← 认证中心返回的账号（CAS 的 `<cas:user>`），无需配置
-   - `学院` / `班级` ← 对应字段键；认证中心未返回该属性时留空，由成员在预填表单里补填
-   - `专业` / `年级` ← 仅归档到「学生信息」页，学生档案插件不使用
+1. **管理端查看绑定信息**：「学生信息」页列表「绑定账号」列 + 详情「绑定信息」块（本站账号 / 用户 ID / 昵称 / 邮箱 / 手机 / 账号状态）。
+   - 数据来源：宿主 SPI 2.29.0 的 `PluginUserService.findByExternalIdentity(providerCode, platformType, socialUid)`；`platformType` 取档案自身记录的协议（CAS/OIDC），切换协议后历史绑定仍能查到。
+   - 降级：宿主不支持该能力、未提供用户服务或绑定用户已删除时，该列显示「无法查询」并给出原因，列表与其余功能照常（fail-open）。
+   - 只能看「学工号 → 本站账号」这一方向：SPI 没有反向（按本站账号列绑定）的契约。
 
-## v1.0.5 新增
+## v1.0.5 新增（v2.0.0 已移除预填挂件）
 
-1. **学生档案预填（对接 `yudream-student-info` 插件）**：已绑定 CAS 且尚未填写学生档案的用户，右下角出现「完善学生档案」提醒；表单自动带入 CAS 属性（姓名/学号/学院，认证中心返回班级时一并带入），保存直接写入 `yudream-student-info` 插件的 `PUT /api/plugins/yudream-student-info/api/me`。
+1. **学生档案预填（对接 `yudream-student-info` 插件）**：已绑定 CAS 且尚未填写学生档案的用户，右下角出现「完善学生档案」提醒；表单自动带入 CAS 属性（姓名/学号/学院，认证中心返回班级时一并带入），保存直接写入 `yudream-student-info` 插件的 `PUT /api/plugins/yudream-student-info/api/me`。**（v2.0.0 起本插件不再向学生档案插件写入任何信息，该挂件与 `/me/profile` 端点已下线）**
    - 预填数据来自本插件新公开端点 `GET /api/plugins/cas/api/me/profile?socialUid=`（要求已登录，返回最小字段集——姓名/班级/学院/专业/年级，不含邮箱/电话/原始属性）。
    - 学工号取自宿主绑定记录（`/api/user/me/external-accounts` 的 `socialUid`），后端不做 userId↔学工号映射。
    - 已填写过档案（`studentNo` 非空）不再提醒；用户点「暂不填写」按账号记忆，不再打扰；查询失败静默放弃。
@@ -96,11 +102,11 @@ META-INF/yudream-plugin/frontend/cas/manifest.json
 
 ```
 bootstrap/        插件入口，注册扩展、管理端点与全局挂件
-domain/           设置/学生映射/学生档案聚合、协议枚举、仓储接口
-application/      设置用例、学生信息用例（含绑定查询）、PluginExternalLoginProvider 实现
-infrastructure/   文档存储、密钥库、CAS XML、OIDC JWT
-interfaces/       管理端 HTTP + 公开门禁/预填端点
-frontend/         Vite remote：设置页、学生信息页、Gate 绑定门禁挂件、Prefill 档案预填挂件
+domain/           设置/访问控制/学生档案聚合、协议枚举、学生档案查询端口、仓储接口
+application/      设置用例、访问控制用例、学生信息用例（含绑定与学院/班级读取）
+infrastructure/   文档存储、密钥库、CAS XML、OIDC JWT、学生档案插件只读适配器
+interfaces/       管理端 HTTP + 公开门禁端点
+frontend/         Vite remote：设置页、学生信息页、Gate 绑定门禁挂件
 ```
 
 注：`frontend/node_modules` 是指向 `../yudream-plugin-cas/frontend/node_modules` 的 Windows junction（复用依赖，删除不影响源码）。
