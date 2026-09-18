@@ -4,19 +4,36 @@
 # every entry must be a root-reactor module. Local and branch builds ignore this
 # file and always build the full reactor.
 #
-# 本次发布包含与 fork 基线（minecraft-server 1.5.1 / minecraft-activity-proof 2.4.1 /
-# project-progress 1.2.2 / questionbank 1.3.0）相比真正改动的插件：
-#   - minecraft-server 1.6.0：群组服子服维度（解析、拆分统计、事件流水、按子服 API）
-#   - minecraft-activity-proof 2.5.0 / project-progress 1.3.0：两个消费方的按子服核验与打卡
-#   - questionbank 1.4.0：群指令开放时间限制
-#   - points-mall 1.1.0：新增积分商城（封面与凭证走宿主对象存储、结算资产按商品设置、发放凭证 + 用户确认收货）
-#   - eduroam 1.2.0：北京大学探测认证、学校后缀配置、首次认证自动开户并设置本站密码
-#   - yggc 1.2.0：发现文档 shared_client_id（共享客户端），支持无内置 client_id 的启动器登录
+# 本次发布覆盖「本仓 plugin.yml 版本 ≠ Nexus 上该 artifact 最新 release」的全部 17 个插件，
+# 即仓库里已就绪、但还没随 tag 发布出去的改动（括号内为 Nexus 已发布版本 → 本次发布版本）：
+#   - minecraft-server 1.6.0（1.5.1 →）：群组服子服维度（解析、拆分统计、事件流水、按子服 API）
+#   - minecraft-activity-proof 2.5.0（2.4.1 →）/ project-progress 1.3.0（1.2.1 →）：两个消费方的按子服核验与打卡
+#   - points-mall 1.1.0（新插件）：新增积分商城（封面与凭证走宿主对象存储、结算资产按商品设置、发放凭证 + 用户确认收货）
+#   - yudream-skin 1.3.2（1.3.1 →）/ wallet 1.1.6（1.1.5 →）/ wordle 1.2.4（1.2.3 →）/ pony 1.0.3（1.0.2 →）/
+#     mcguess 3.0.3（3.0.2 →）：指令回复统一回传 message_scene 与被动回复凭证，修复 C2C 私聊回复误走群接口
+#   - qq-binding 1.0.1（1.0.0 →）：QQ 绑定回复回传 message_scene，修复 C2C 单聊回复误走群接口 400
+#   - questionbank 1.4.0（1.3.1 →）：群指令开放时间限制；群指令文案补上前导斜杠
+#   - edu-verify 1.5.4（1.5.2 →）：注册拦截对格式错误的邮箱不再抛成「注册校验服务异常」，非法邮箱按未核验拒绝
+#   - eduroam 1.2.0（新插件）：校园认证通过后按本站邮箱后缀自动开户，用户须设置并确认独立的本站密码；已有账号不覆盖密码
+#   - neco-pixel 2.0.11（2.0.10 →）：公开插件市场 /market、/market/:code 纳入 SITE 换肤（Arco 变量、像素方角、强调色与点击音效）
+#   - yggc 1.2.0（新插件）：发现文档支持共享客户端 shared_client_id，供没有内置 client_id 的启动器登录
+#   - invite 1.0.0（新插件）：外校成员邀请码绑定（一码一人、一人多码；绑定后不可自行解绑）
+#   - mail 1.3.1（新插件）：收件箱地址列表改为专用端点 GET /inbox/address-options，普通用户可正常使用收件箱
 # 未列入的插件不打包、不发布、不跟随升版。
-yudream-plugin-minecraft-server
 yudream-plugin-minecraft-activity-proof
+yudream-plugin-minecraft-server
 yudream-plugin-project-progress
-yudream-plugin-questionbank
 yudream-plugin-points-mall
+yudream-plugin-yudream-skin
+yudream-plugin-wallet
+yudream-plugin-qq-binding
+yudream-plugin-wordle
+yudream-plugin-pony
+yudream-plugin-mcguess
+yudream-plugin-questionbank
+yudream-plugin-edu-verify
 yudream-plugin-eduroam
+yudream-plugin-neco-pixel
 yudream-plugin-yggc
+yudream-plugin-invite
+yudream-plugin-mail
