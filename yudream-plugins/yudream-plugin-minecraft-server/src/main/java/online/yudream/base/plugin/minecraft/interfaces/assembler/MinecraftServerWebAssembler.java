@@ -4,7 +4,6 @@ import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerEvent
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftPlayerSnapshotCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftSeasonOpenCmd;
 import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerSaveCmd;
-import online.yudream.base.plugin.minecraft.application.cmd.MinecraftServerTopologyCmd;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftEconomyRecordDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftEndpointStatusDTO;
 import online.yudream.base.plugin.minecraft.application.dto.MinecraftInheritanceRuleDTO;
@@ -18,7 +17,6 @@ import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftPlayerEv
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftPlayerSnapshotRequest;
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftSeasonOpenRequest;
 import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftServerSaveRequest;
-import online.yudream.base.plugin.minecraft.interfaces.request.MinecraftServerTopologyRequest;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftEconomyRecordRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftEndpointStatusRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftInheritanceRuleRes;
@@ -28,8 +26,7 @@ import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftPlayerActivi
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftServerRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftServerStatusRes;
 import online.yudream.base.plugin.minecraft.interfaces.res.MinecraftStatusSnapshotRes;
-
-import java.util.List;
+import online.yudream.base.plugin.minecraft.interfaces.res.ModpackBindingRes;
 
 public class MinecraftServerWebAssembler {
 
@@ -59,8 +56,7 @@ public class MinecraftServerWebAssembler {
         return new MinecraftPlayerEventCmd(
                 textOr(request.playerId(), request.uuid()),
                 textOr(request.playerName(), request.name()),
-                request.eventAt(),
-                request.server()
+                request.eventAt()
         );
     }
 
@@ -68,22 +64,11 @@ public class MinecraftServerWebAssembler {
         return new MinecraftPlayerSnapshotCmd(
                 request.observedAt(),
                 request.players() == null ? java.util.List.of() : request.players().stream()
-                        .map(this::toCmd)
-                        .toList(),
-                request.servers() == null ? java.util.List.of() : request.servers().stream()
-                        .map(server -> new MinecraftPlayerSnapshotCmd.Server(
-                                server.name(),
-                                server.players() == null ? java.util.List.of() : server.players().stream()
-                                        .map(this::toCmd)
-                                        .toList()))
+                        .map(player -> new MinecraftPlayerSnapshotCmd.Player(
+                                textOr(player.playerId(), player.uuid()),
+                                textOr(player.playerName(), player.name())))
                         .toList()
         );
-    }
-
-    private MinecraftPlayerSnapshotCmd.Player toCmd(MinecraftPlayerSnapshotRequest.Player player) {
-        return new MinecraftPlayerSnapshotCmd.Player(
-                textOr(player.playerId(), player.uuid()),
-                textOr(player.playerName(), player.name()));
     }
 
     public MinecraftServerRes toRes(MinecraftServerDTO dto) {
@@ -98,40 +83,9 @@ public class MinecraftServerWebAssembler {
                 dto.currentSeason() == null ? null : toRes(dto.currentSeason()),
                 dto.status() == null ? null : toRes(dto.status()),
                 dto.map() == null ? null : new MinecraftServerRes.MapRes(dto.map().fileId(), dto.map().originalName(), dto.map().publicAccess(), dto.map().externalUrl()),
-                toRes(dto.topology()),
                 dto.createdAt(),
                 dto.updatedAt()
         );
-    }
-
-    public MinecraftServerRes.TopologyRes toRes(MinecraftServerDTO.TopologyDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-        List<MinecraftServerRes.SubServerRes> servers = dto.servers().stream().map(this::toRes).toList();
-        return new MinecraftServerRes.TopologyRes(
-                dto.proxy(),
-                dto.proxyVersion(),
-                dto.reportedAt(),
-                dto.reported(),
-                servers.stream().mapToInt(MinecraftServerRes.SubServerRes::online).sum(),
-                servers.stream().filter(MinecraftServerRes.SubServerRes::sensor).count(),
-                servers
-        );
-    }
-
-    public MinecraftServerRes.SubServerRes toRes(MinecraftServerDTO.SubServerDTO dto) {
-        return new MinecraftServerRes.SubServerRes(dto.name(), dto.address(), dto.online(),
-                dto.sensor(), dto.defaultServer(), dto.sort());
-    }
-
-    public MinecraftServerTopologyCmd toCmd(MinecraftServerTopologyRequest request) {
-        List<MinecraftServerTopologyCmd.Server> servers = request.servers() == null ? List.of()
-                : request.servers().stream()
-                .map(server -> new MinecraftServerTopologyCmd.Server(server.name(), server.address(),
-                        server.online(), server.sensor(), server.defaultServer()))
-                .toList();
-        return new MinecraftServerTopologyCmd(request.proxy(), request.proxyVersion(), request.reportedAt(), servers);
     }
 
     public MinecraftServerStatusRes toRes(MinecraftServerStatusDTO dto) {
@@ -169,10 +123,7 @@ public class MinecraftServerWebAssembler {
     public MinecraftPlayerActivityRes toRes(MinecraftPlayerActivityDTO dto) {
         return new MinecraftPlayerActivityRes(dto.serverId(), dto.playerId(), dto.playerName(), dto.online(), dto.afk(),
                 dto.totalOnlineMillis(), dto.totalAfkMillis(), dto.currentOnlineSince(), dto.currentAfkSince(),
-                dto.lastJoinedAt(), dto.lastQuitAt(), dto.updatedAt(),
-                dto.subServers().stream().map(sub -> new MinecraftPlayerActivityRes.SubServerRes(
-                        sub.name(), sub.online(), sub.afk(), sub.onlineMillis(), sub.afkMillis(),
-                        sub.currentOnlineSince(), sub.currentAfkSince(), sub.lastJoinedAt(), sub.lastQuitAt())).toList());
+                dto.lastJoinedAt(), dto.lastQuitAt(), dto.updatedAt());
     }
 
     private MinecraftServerSaveCmd.Endpoint toCmd(MinecraftServerSaveRequest.Endpoint request) {
@@ -182,7 +133,14 @@ public class MinecraftServerWebAssembler {
 
     private MinecraftServerSaveCmd.Season toCmd(MinecraftServerSaveRequest.Season request) {
         return new MinecraftServerSaveCmd.Season(request.id(), request.name(), request.description(), request.startedAt(),
-                request.endedAt(), request.current(), request.sort());
+                request.endedAt(), request.current(), request.sort(),
+                request.binding() == null ? null : new MinecraftServerSaveCmd.ModpackBinding(
+                        request.binding().type(),
+                        request.binding().gameVersion(),
+                        request.binding().loader(),
+                        request.binding().packId(),
+                        request.binding().versionId()
+                ));
     }
 
     private MinecraftSeasonOpenCmd.Rule toCmd(MinecraftSeasonOpenRequest.Rule request) {
@@ -196,7 +154,12 @@ public class MinecraftServerWebAssembler {
 
     private MinecraftServerRes.SeasonRes toRes(MinecraftServerDTO.SeasonDTO dto) {
         return new MinecraftServerRes.SeasonRes(dto.id(), dto.name(), dto.description(), dto.startedAt(), dto.endedAt(),
-                dto.current(), dto.sort());
+                dto.current(), dto.sort(), toRes(dto.modpackBinding()));
+    }
+
+    private ModpackBindingRes toRes(online.yudream.base.plugin.minecraft.application.dto.ModpackBindingDTO dto) {
+        if (dto == null) return ModpackBindingRes.none();
+        return new ModpackBindingRes(dto.type(), dto.gameVersion(), dto.loader(), dto.packId(), dto.versionId());
     }
 
     private MinecraftEndpointStatusRes toRes(MinecraftEndpointStatusDTO dto) {

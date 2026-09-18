@@ -6,3 +6,4 @@ main: online.yudream.base.plugin.projectprogress.bootstrap.ProjectProgressPlugin
 version: 1.3.0
 softdepend:
   - minecraft-server
+  - ymcl-adapter

@@ -1,4 +1,4 @@
-import type { Activity, ActivityBindingForm, ActivityDeptOption, ActivityFormOption, ActivityProofServer, ActivityQuizCategoryOption, ActivitySaveForm, QuizSubjectiveMode, TimeValue } from '../types'
+import type { Activity, ActivityBindingForm, ActivityDeptOption, ActivityFormOption, ActivityQuizCategoryOption, ActivitySaveForm, QuizSubjectiveMode, TimeValue } from '../types'
 import type { ActivitySavePayload } from '../api/activity-proof-api'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import { useFaToast } from '@yudream/components'
@@ -19,7 +19,7 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
   const minecraftReady = ref(false)
   const formReady = ref(false)
   const quizReady = ref(false)
-  const servers = ref<ActivityProofServer[]>([])
+  const servers = ref<{ id: string, name: string }[]>([])
 
   const form = reactive<ActivitySaveForm>({
     id: '',
@@ -137,7 +137,7 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
       ])
       deptOptions.value = depts
       formOptions.value = forms
-      servers.value = serverList
+      servers.value = serverList.map(item => ({ id: item.id, name: item.name }))
       if (id) {
         const activity = await api.admin.activity(id)
         applyActivity(activity)
@@ -166,7 +166,6 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
     form.bindings = (activity.bindings || []).map(binding => ({
       type: binding.type,
       serverId: binding.serverId || '',
-      subServer: binding.subServer || '',
       minOnlineMinutes: binding.minOnlineMinutes || 0,
       includeAfk: binding.includeAfk,
       autoJoin: binding.autoJoin,
@@ -229,28 +228,11 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
     form.bindings.push({
       type,
       serverId: '',
-      subServer: '',
       minOnlineMinutes: 0,
       includeAfk: false,
       autoJoin: false,
       formCode: '',
     })
-  }
-
-  /** 该服务器已知的下游子服；单机服为空数组，界面据此隐藏子服选择。 */
-  function subServersOf(serverId: string) {
-    return servers.value.find(item => item.id === serverId)?.subServers || []
-  }
-
-  /**
-   * 换服务器时清掉已选子服。
-   *
-   * 子服名只在它所属的服务器内有意义（两台代理都可能有 fabric），换服后留着旧值会既误导
-   * 操作者、又会让核验去查一个不属于该服的子服。
-   */
-  function changeServer(binding: ActivityBindingForm, serverId: string) {
-    binding.serverId = serverId
-    binding.subServer = ''
   }
 
   function removeBinding(index: number) {
@@ -292,7 +274,7 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
       allowedDeptIds: form.deptMode === 'DEPTS' ? [...form.allowedDeptIds] : [],
       bindings: form.bindings.map((binding) => {
         if (binding.type === 'PLAYTIME') {
-          return { type: 'PLAYTIME', serverId: binding.serverId, subServer: binding.subServer || '', minOnlineMinutes: binding.minOnlineMinutes, includeAfk: binding.includeAfk, autoJoin: binding.autoJoin }
+          return { type: 'PLAYTIME', serverId: binding.serverId, minOnlineMinutes: binding.minOnlineMinutes, includeAfk: binding.includeAfk, autoJoin: binding.autoJoin }
         }
         if (binding.type === 'QUIZ') {
           return { type: 'QUIZ' }
@@ -341,8 +323,6 @@ export function useActivityEdit(sdk: YuDreamPluginSdk) {
     formReady,
     quizReady,
     servers,
-    subServersOf,
-    changeServer,
     form,
     isEdit,
     readonly,

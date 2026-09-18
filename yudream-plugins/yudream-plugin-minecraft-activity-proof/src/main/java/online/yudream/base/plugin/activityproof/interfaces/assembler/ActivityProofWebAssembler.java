@@ -73,8 +73,7 @@ public class ActivityProofWebAssembler {
     }
 
     public ActivityBindingCmd toCmd(ActivityBindingRequest request) {
-        return new ActivityBindingCmd(request.type(), request.serverId(), request.subServer(),
-                request.minOnlineMinutes(), request.includeAfk(),
+        return new ActivityBindingCmd(request.type(), request.serverId(), request.minOnlineMinutes(), request.includeAfk(),
                 request.autoJoin(), request.formCode());
     }
 

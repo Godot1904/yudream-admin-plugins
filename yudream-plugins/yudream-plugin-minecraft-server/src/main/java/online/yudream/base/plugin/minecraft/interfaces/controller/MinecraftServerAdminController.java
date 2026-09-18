@@ -47,6 +47,9 @@ public class MinecraftServerAdminController {
     @PluginHttpEndpoint(method = "POST", path = "/admin/servers/{serverId}/seasons/open", permission = MinecraftServerPlugin.MANAGE_PERMISSION)
     public PluginHttpResponse openSeason(PluginHttpRequest request) { return http.openSeason(request); }
 
+    @PluginHttpEndpoint(method = "POST", path = "/admin/servers/{serverId}/seasons/{seasonId}/modpack-binding", permission = MinecraftServerPlugin.MANAGE_PERMISSION)
+    public PluginHttpResponse bindSeasonModpack(PluginHttpRequest request) { return http.bindSeasonModpack(request); }
+
     @PluginHttpEndpoint(method = "GET", path = "/admin/servers/{serverId}/operations", permission = MinecraftServerPlugin.MANAGE_PERMISSION)
     public PluginHttpResponse operations(PluginHttpRequest request) { return http.operations(request); }
 
@@ -55,8 +58,4 @@ public class MinecraftServerAdminController {
 
     @PluginHttpEndpoint(method = "GET", path = "/admin/servers/{serverId}/players", permission = MinecraftServerPlugin.MANAGE_PERMISSION)
     public PluginHttpResponse playerActivities(PluginHttpRequest request) { return http.playerActivities(request); }
-
-    /** 一键解析群组服：读取代理已上报的子服表；尚未上报时返回可操作的原因。 */
-    @PluginHttpEndpoint(method = "POST", path = "/admin/servers/{serverId}/topology/resolve", permission = MinecraftServerPlugin.MANAGE_PERMISSION)
-    public PluginHttpResponse resolveTopology(PluginHttpRequest request) { return http.resolveTopology(request); }
 }

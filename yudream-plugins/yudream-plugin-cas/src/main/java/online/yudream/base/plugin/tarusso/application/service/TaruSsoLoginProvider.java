@@ -4,6 +4,7 @@ import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginAuthorizeRe
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginDescriptor;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginExchangeRequest;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginIdentity;
+import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginPresentation;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginProvider;
 import online.yudream.base.plugin.tarusso.bootstrap.TaruSsoPlugin;
 import online.yudream.base.plugin.tarusso.domain.aggregate.SsoSettings;
@@ -21,6 +22,12 @@ public final class TaruSsoLoginProvider implements PluginExternalLoginProvider {
      */
     public static final String PROVIDER_CODE = TaruSsoPlugin.CODE;
 
+    /**
+     * 登录入口排序位。宿主内置 Tab 的基线是「账号密码登录」100、「Passkey 登录」200，
+     * 插件入口按同一 sort 升序排列，因此 0 让本插件的统一身份认证 Tab 排在首位。
+     */
+    private static final int LOGIN_ENTRY_SORT = 0;
+
     private final SettingsService settings;
     private final StudentInfoService studentInfo;
 
@@ -37,8 +44,17 @@ public final class TaruSsoLoginProvider implements PluginExternalLoginProvider {
                 current.displayName(),
                 current.icon(),
                 List.of(current.protocol().typeCode()),
-                20
+                LOGIN_ENTRY_SORT
         );
+    }
+
+    /**
+     * 登录页呈现方式：与「账号密码登录 / Passkey 登录」并列的登录方式 Tab。
+     * 宿主 SPI 2.32.0 起支持；旧宿主未实现该方法时为缺省 ICON（图标按钮），不影响登录流程。
+     */
+    @Override
+    public PluginExternalLoginPresentation presentation() {
+        return PluginExternalLoginPresentation.TAB;
     }
 
     @Override

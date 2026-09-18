@@ -20,6 +20,13 @@ public class YggcProtocolController {
     @PluginHttpEndpoint(method = "GET", path = "/api/yggdrasil", wrapResult = false)
     public PluginHttpResponse metadata(PluginHttpRequest request) { return http.metadata(request); }
 
+    /**
+     * 启动器免密会话兑换（与 authlib-injector 的 launcher/exchange 同形）：
+     * 站点登录会话 → Yggdrasil 会话；{@code ?list=true} 仅列举角色。
+     */
+    @PluginHttpEndpoint(method = "POST", path = "/launcher/exchange", wrapResult = false)
+    public PluginHttpResponse exchange(PluginHttpRequest request) { return http.exchange(request); }
+
     @PluginHttpEndpoint(method = "POST", path = "/api/yggdrasil/authserver/authenticate", wrapResult = false)
     public PluginHttpResponse authenticate(PluginHttpRequest request) { return http.authenticate(request); }
 

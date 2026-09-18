@@ -5,6 +5,7 @@ import online.yudream.base.plugin.spi.system.user.PluginUserProfile;
 import online.yudream.base.plugin.skin.api.PluginSkinProfile;
 import online.yudream.base.plugin.skin.api.PluginSkinService;
 import online.yudream.base.plugin.skin.api.PluginSkinTexture;
+import online.yudream.base.plugin.yggc.api.PluginYggcAuthService;
 import online.yudream.base.plugin.yggc.domain.aggregate.AuthSession;
 import online.yudream.base.plugin.yggc.domain.aggregate.ServerJoin;
 import online.yudream.base.plugin.yggc.domain.aggregate.YggcSettings;
@@ -38,7 +39,7 @@ import java.util.logging.Logger;
  * 访问令牌与会话服务器同时被 YggcOAuthService 颁发的 OAuth 访问令牌识别。
  * 各项限制（令牌有效期 / 数量上限 / 频率限制 / 批量查询上限 / 皮肤白名单）由后台配置驱动。
  */
-public class YggcAppService {
+public class YggcAppService implements PluginYggcAuthService {
 
     private static final String SKIN_PLUGIN_CODE = "yudream-skin";
     private static final long JOIN_TTL = Duration.ofMinutes(5).toMillis();
@@ -190,6 +191,65 @@ public class YggcAppService {
         throttle("signout:" + normalizeKey(request.username()), settings.rateLimit());
         PluginUserProfile user = authenticateSystemUser(request.username(), request.password());
         repository.findSessionsByUser(String.valueOf(user.id())).forEach(session -> repository.deleteSession(session.accessToken()));
+    }
+
+    /**
+     * 启动器免密会话兑换（对齐 authlib-injector 的 launcher/exchange）：调用方已持有站点
+     * 登录会话，此处按 userId 取角色并向 ygg 签发会话，免去密码重放。
+     */
+    public List<PluginSkinProfile> profilesOf(String userId) {
+        return profilesForUser(userId);
+    }
+
+    /** 选择要登录的角色；角色名不存在时回落首个可用角色（与 authlib-injector 行为一致）。 */
+    public PluginSkinProfile selectProfile(List<PluginSkinProfile> profiles, String requestedProfileName) {
+        if (!hasText(requestedProfileName)) {
+            return profiles.get(0);
+        }
+        String wanted = requestedProfileName.trim();
+        return profiles.stream()
+                .filter(profile -> wanted.equalsIgnoreCase(profile.name()) || wanted.equalsIgnoreCase(profile.uuid()))
+                .findFirst()
+                .orElse(profiles.get(0));
+    }
+
+    public AuthSession issueSession(String userId, String clientToken, PluginSkinProfile selected) {
+        if (!hasText(userId)) {
+            throw new IllegalArgumentException("userId 不能为空");
+        }
+        if (selected == null) {
+            throw new IllegalArgumentException("该账号没有可用角色（请先在皮肤站创建角色）");
+        }
+        YggcSettings settings = settingsService.current();
+        String owner = userId.trim();
+        String sessionClientToken = hasText(clientToken) ? clientToken.trim() : UUID.randomUUID().toString();
+        AuthSession session = new AuthSession(randomToken(), sessionClientToken, owner,
+                selected.name(), selected.uuid(), now(), now() + settings.tokenExpire() * 1000L);
+        AuthSession saved = repository.saveSession(session);
+        pruneSessions(owner, settings.tokensLimit());
+        profileSyncTrigger.profilesInUse(owner);
+        LOG.info("[yggc] 免密签发会话：userId=" + owner + "，角色 " + selected.name()
+                + "（" + selected.uuid() + "）");
+        return saved;
+    }
+
+    @Override
+    public List<PluginYggcProfile> listProfiles(String userId) {
+        return profilesForUser(userId).stream()
+                .map(profile -> new PluginYggcProfile(profile.uuid(), profile.name()))
+                .toList();
+    }
+
+    @Override
+    public IssuedSession issueSession(String userId, String clientToken, String requestedProfileName) {
+        List<PluginSkinProfile> profiles = profilesForUser(userId);
+        if (profiles.isEmpty()) {
+            throw new IllegalArgumentException("该账号没有可用角色（请先在皮肤站创建角色）");
+        }
+        PluginSkinProfile selected = selectProfile(profiles, requestedProfileName);
+        AuthSession saved = issueSession(userId, clientToken, selected);
+        return new IssuedSession(saved.userId(), saved.username(), saved.selectedProfileId(),
+                saved.accessToken(), saved.clientToken());
     }
 
     public void join(JoinRequest request) {

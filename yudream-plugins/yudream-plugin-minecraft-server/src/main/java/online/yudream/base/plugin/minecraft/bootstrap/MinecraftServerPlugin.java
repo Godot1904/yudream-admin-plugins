@@ -13,6 +13,7 @@ import online.yudream.base.plugin.minecraft.interfaces.controller.MinecraftServe
 import online.yudream.base.plugin.minecraft.interfaces.http.MinecraftServerHttpFacade;
 import online.yudream.base.plugin.minecraft.interfaces.support.BriefText;
 import online.yudream.base.plugin.minecraft.interfaces.theme.ServerListThemeBlockProvider;
+import online.yudream.base.plugin.minecraft.infrastructure.launcher.MinecraftYmclContributionProvider;
 import online.yudream.base.plugin.skin.api.PluginSkinService;
 import online.yudream.base.plugin.spi.annotation.PluginFrontend;
 import online.yudream.base.plugin.spi.annotation.PluginCommand;
@@ -43,7 +44,7 @@ import java.util.Set;
 @PluginSpec(
         code = MinecraftServerPlugin.CODE,
         name = "minecraft-server",
-        version = "1.6.0",
+        version = "1.5.7",
         description = "管理 Minecraft 服务器列表、多线地址、在线状态与周目展示。"
 )
 @PluginPermissions({
@@ -149,6 +150,7 @@ public class MinecraftServerPlugin implements YuDreamPlugin {
         context.onDispose(statusScheduler);
         context.exposeService(PluginMinecraftService.class, appService);
         context.registerExtension(PluginThemeBlockProvider.class, new ServerListThemeBlockProvider(appService));
+        registerYmclContribution(context, appService);
         MinecraftServerHttpFacade http = new MinecraftServerHttpFacade(appService);
         context.registerHttpController(new MinecraftServerUserController(http));
         context.registerHttpController(new MinecraftServerAdminController(http));
@@ -287,40 +289,13 @@ public class MinecraftServerPlugin implements YuDreamPlugin {
         return view;
     }
 
-    /**
-     * 多台 Admin 服务器条目上的同一玩家合并成一条展示记录。
-     *
-     * <p>子服拆分同样合并：同名子服求和，不同子服的明细都保留，界面才能显示“A 服多久 + B 服多久”。
-     */
     private MinecraftPlayerActivityDTO mergeActivities(String serverName, List<MinecraftPlayerActivityDTO> items) {
         MinecraftPlayerActivityDTO first = items.getFirst();
-        Map<String, List<MinecraftPlayerActivityDTO.SubServerDTO>> byName = items.stream()
-                .flatMap(item -> item.subServers().stream())
-                .collect(java.util.stream.Collectors.groupingBy(
-                        MinecraftPlayerActivityDTO.SubServerDTO::name, LinkedHashMap::new,
-                        java.util.stream.Collectors.toList()));
-        List<MinecraftPlayerActivityDTO.SubServerDTO> subServers = byName.entrySet().stream()
-                .map(entry -> mergeSubServers(entry.getKey(), entry.getValue()))
-                .toList();
         return new MinecraftPlayerActivityDTO(serverName, first.playerId(), first.playerName(),
                 items.stream().anyMatch(MinecraftPlayerActivityDTO::online), items.stream().anyMatch(MinecraftPlayerActivityDTO::afk),
                 items.stream().mapToLong(MinecraftPlayerActivityDTO::totalOnlineMillis).sum(),
                 items.stream().mapToLong(MinecraftPlayerActivityDTO::totalAfkMillis).sum(), null, null,
-                first.lastJoinedAt(), first.lastQuitAt(), first.updatedAt(), subServers);
-    }
-
-    private static MinecraftPlayerActivityDTO.SubServerDTO mergeSubServers(
-            String name, List<MinecraftPlayerActivityDTO.SubServerDTO> items) {
-        return new MinecraftPlayerActivityDTO.SubServerDTO(name,
-                items.stream().anyMatch(MinecraftPlayerActivityDTO.SubServerDTO::online),
-                items.stream().anyMatch(MinecraftPlayerActivityDTO.SubServerDTO::afk),
-                items.stream().mapToLong(MinecraftPlayerActivityDTO.SubServerDTO::onlineMillis).sum(),
-                items.stream().mapToLong(MinecraftPlayerActivityDTO.SubServerDTO::afkMillis).sum(),
-                null, null,
-                items.stream().map(MinecraftPlayerActivityDTO.SubServerDTO::lastJoinedAt)
-                        .filter(java.util.Objects::nonNull).findFirst().orElse(null),
-                items.stream().map(MinecraftPlayerActivityDTO.SubServerDTO::lastQuitAt)
-                        .filter(java.util.Objects::nonNull).findFirst().orElse(null));
+                first.lastJoinedAt(), first.lastQuitAt(), first.updatedAt());
     }
 
     private Map<String, Object> activityView(MinecraftPlayerActivityDTO activity, String serverName) {
@@ -400,5 +375,19 @@ public class MinecraftServerPlugin implements YuDreamPlugin {
         if (command.event().channelId() == null || command.event().channelId().isBlank()) return;
         context.framework().messaging().send(new PluginMessageRequest(command.event().connectionId(), command.event().platform(), command.event().selfId(),
                 command.event().channelId(), content));
+    }
+
+    /**
+     * 向 YMCL 适配器（ymcl-adapter）贡献服务器列表数据源；
+     * ymcl-adapter 缺失时按软依赖降级（同上，LinkageError 兜底）。
+     */
+    private void registerYmclContribution(PluginContext context, MinecraftServerAppService appService) {
+        try {
+            context.registerExtension(
+                    online.yudream.base.plugin.ymcl.api.YmclContributionProvider.class,
+                    new MinecraftYmclContributionProvider(appService));
+        } catch (LinkageError ignored) {
+            // ymcl-adapter 未安装，降级即可
+        }
     }
 }

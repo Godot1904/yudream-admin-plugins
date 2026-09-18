@@ -3,10 +3,22 @@
 独立插件项目，不并入 `yudream-admin-plugins` 仓库，也不做 Git 提交。约定对齐插件仓 `AGENTS.md` 与宿主仓 SPI。
 
 - 插件 code：`cas`
-- 版本：`2.0.0`
-- 依赖宿主 SPI：`2.29.0`（`PluginExternalLoginProvider`、`PluginGlobalWidget`、`PluginUserService.findByExternalIdentity`）
+- 版本：`2.1.1`
+- 依赖宿主 SPI：`2.32.0`（`PluginExternalLoginProvider`、`PluginExternalLoginPresentation`、`PluginGlobalWidget`、`PluginUserService.findByExternalIdentity`）
 - 软依赖：`yudream-student-info`（只读，取学院 / 班级；未安装时相关列显示为空）
-- 登录入口由宿主登录页 Tabs 渲染，插件贡献协议实现、管理设置页、学生信息页与绑定门禁挂件
+- 登录入口由宿主登录页 Tabs 渲染（`presentation()` 声明 `TAB`；宿主 SPI < 2.32.0 时回落为表单下方的图标按钮），插件贡献协议实现、管理设置页、学生信息页与绑定门禁挂件
+
+## v2.1.1 新增
+
+1. **登录 Tab 置顶**：`descriptor().sort()` 由 20 改为 0。宿主登录 Tab 按 `sort` 升序与内置 Tab 同列排序（内置基线：账号密码登录 100、Passkey 登录 200），所以「CAS 统一身份认证」排在首位；`sort < 100` 是插件入口排到账号密码之前的条件，100~199 则落在账号密码与 Passkey 之间。
+   - 需要宿主 SPI 2.32.0 且宿主后端把 `sort` 一并下发（`/api/external-login/providers`）；旧宿主忽略该字段，顺序仍是内置 Tab 在前。
+   - `sort` 同时决定图标按钮型入口之间的顺序，本插件声明为 TAB，不参与那一排。
+
+## v2.1.0 新增
+
+1. **登录入口以 Tab 呈现**：`TaroSsoLoginProvider.presentation()` 返回 `PluginExternalLoginPresentation.TAB`（宿主 SPI 2.32.0 起），登录页把本插件的每个协议入口渲染成与「账号密码登录 / Passkey 登录」并列的登录方式 Tab，标签取 `displayName`、图标取 `icon`，选中后显示整行「使用 CAS 统一身份认证登录」按钮。
+   - 兼容：宿主 SPI < 2.32.0 不认该方法，入口自动回落为表单下方的一排圆形图标按钮，登录与绑定流程完全不变。
+   - 绑定流程（`externalLoginBindingToken`）下与 Passkey 一致：不参与 Tab 渲染，只保留账号密码登录。
 
 ## v2.0.0 破坏性变更
 
@@ -63,7 +75,7 @@
 
 ## 部署前必做
 
-1. 在宿主发布并安装 SPI `2.29.0`，部署含 `PluginExternalLoginProvider` 分发、`AuthEventListener` 与 `PluginUserService.findByExternalIdentity` 的宿主后端与登录页改动。
+1. 在宿主发布并安装 SPI `2.32.0`（`PluginExternalLoginProvider.presentation()` 登录 Tab 呈现；仅要 2.29.0 的自动绑定能力时本插件仍按图标按钮呈现），部署含 `PluginExternalLoginProvider` 分发、`AuthEventListener`、`presentation` 透出与 `PluginUserService.findByExternalIdentity` 的宿主后端与登录页改动。
 2. 把本站回调地址登记到学校网信中心的 CAS service 白名单。回调必须填**前端**回调路由（浏览器回跳到这里，页面再调后端完成登录）：
 
    `https://你的站点/external-login/callback`

@@ -8,6 +8,7 @@ import online.yudream.base.plugin.spi.annotation.PluginRoute;
 import online.yudream.base.plugin.spi.annotation.PluginSpec;
 import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.core.YuDreamPlugin;
+import online.yudream.base.plugin.yggc.api.PluginYggcAuthService;
 import online.yudream.base.plugin.yggc.application.service.YggcAppService;
 import online.yudream.base.plugin.yggc.application.service.YggcOAuthService;
 import online.yudream.base.plugin.yggc.application.service.YggcProfileSyncService;
@@ -28,7 +29,7 @@ import online.yudream.base.plugin.yggc.interfaces.http.YggcHttpFacade;
 @PluginSpec(
         code = YggcPlugin.CODE,
         name = "Union Yggdrasil Connect",
-        version = "1.2.0",
+        version = "1.3.0",
         description = "传统 Yggdrasil 协议 + Yggdrasil Connect（OAuth 2.0 / OIDC，Janus 能力内置）：授权码 + PKCE、设备授权、刷新令牌旋转、RS256 ID Token。",
         dependencies = {"yudream-skin"}
 )
@@ -192,5 +193,7 @@ public class YggcPlugin implements YuDreamPlugin {
         context.registerHttpController(new YggcAdminController(http));
         context.registerHttpController(new YggcUserController(http));
         context.registerHttpController(new YggcUnionController(http));
+        // 免密签发端口：供以 authlib-injector 插件 code 部署的兼容补丁插件按 code 取用。
+        context.exposeService(PluginYggcAuthService.class, appService);
     }
 }

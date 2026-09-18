@@ -1,5 +1,6 @@
 package online.yudream.base.plugin.yggc.interfaces.http;
 
+import online.yudream.base.plugin.skin.api.PluginSkinProfile;
 import online.yudream.base.plugin.spi.http.PluginHttpRequest;
 import online.yudream.base.plugin.spi.http.PluginHttpResponse;
 import online.yudream.base.plugin.spi.system.FrameworkServices;
@@ -11,6 +12,7 @@ import online.yudream.base.plugin.yggc.application.service.YggcOAuthService.OAut
 import online.yudream.base.plugin.yggc.application.service.YggcProfileSyncService;
 import online.yudream.base.plugin.yggc.application.service.YggcSettingsService;
 import online.yudream.base.plugin.yggc.application.service.YggcUnionService;
+import online.yudream.base.plugin.yggc.domain.aggregate.AuthSession;
 import online.yudream.base.plugin.yggc.domain.aggregate.YggcSettings;
 import online.yudream.base.plugin.yggc.infrastructure.service.YggcCryptoService;
 import online.yudream.base.plugin.yggc.infrastructure.service.YggcUnionClient;
@@ -215,6 +217,59 @@ public class YggcHttpFacade {
                 pathSegment(request.path(), 3),
                 pathSegment(request.path(), 4)
         ));
+    }
+
+    // ---- 启动器免密会话兑换（对齐 authlib-injector 的 launcher/exchange）----
+
+    /**
+     * 启动器免密会话兑换：调用方已持有站点登录会话（宿主已解析为 principal），此处按
+     * userId 向 ygg 签发会话，免去密码重放。{@code ?list=true} 仅列举角色（切换角色
+     * 界面用），{@code ?profile=<角色名>} 在多角色时挑选。
+     */
+    public PluginHttpResponse exchange(PluginHttpRequest request) {
+        PluginPrincipal principal = request.principal();
+        if (principal == null || principal.userId() == null) {
+            return ali(request, PluginHttpResponse.rawJson(401, Map.of(
+                    "error", "Unauthorized",
+                    "errorMessage", "需要站点登录会话")));
+        }
+        String userId = String.valueOf(principal.userId());
+        List<PluginSkinProfile> profiles = appService.profilesOf(userId);
+        String list = firstQuery(request, "list");
+        if ("true".equalsIgnoreCase(list) || "1".equals(list)) {
+            return ali(request, PluginHttpResponse.rawJson(200, Map.of("profiles", profilePairs(profiles))));
+        }
+        if (profiles.isEmpty()) {
+            return ali(request, PluginHttpResponse.rawJson(404, Map.of(
+                    "error", "ForbiddenOperationException",
+                    "errorMessage", "该账号没有可用角色（请先在皮肤站创建角色）")));
+        }
+        try {
+            PluginSkinProfile selected = appService.selectProfile(profiles, firstQuery(request, "profile"));
+            AuthSession issued = appService.issueSession(userId, null, selected);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("access_token", issued.accessToken());
+            body.put("client_token", issued.clientToken());
+            body.put("username", issued.username());
+            body.put("profile", Map.of("id", issued.selectedProfileId(), "name", issued.username()));
+            body.put("profiles", profilePairs(profiles));
+            return ali(request, PluginHttpResponse.rawJson(200, body));
+        } catch (IllegalArgumentException exception) {
+            return ali(request, PluginHttpResponse.rawJson(404, Map.of(
+                    "error", "IllegalArgumentException",
+                    "errorMessage", String.valueOf(exception.getMessage()))));
+        }
+    }
+
+    private List<Map<String, String>> profilePairs(List<PluginSkinProfile> profiles) {
+        List<Map<String, String>> pairs = new ArrayList<>();
+        for (PluginSkinProfile profile : profiles) {
+            Map<String, String> pair = new LinkedHashMap<>();
+            pair.put("id", profile.uuid());
+            pair.put("name", profile.name());
+            pairs.add(pair);
+        }
+        return pairs;
     }
 
     // ---- Yggdrasil Connect：OAuth 端点 ----

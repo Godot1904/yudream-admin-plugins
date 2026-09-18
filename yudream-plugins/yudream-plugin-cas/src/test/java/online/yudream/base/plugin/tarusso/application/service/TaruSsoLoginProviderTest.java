@@ -2,6 +2,7 @@ package online.yudream.base.plugin.tarusso.application.service;
 
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginAuthorizeRequest;
 import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginExchangeRequest;
+import online.yudream.base.plugin.spi.system.auth.PluginExternalLoginPresentation;
 import online.yudream.base.plugin.spi.system.secret.PluginSecretStore;
 import online.yudream.base.plugin.spi.system.storage.PluginDocumentStore;
 import online.yudream.base.plugin.tarusso.application.dto.SsoSettingsDto;
@@ -32,6 +33,17 @@ class TaruSsoLoginProviderTest {
         assertFalse(provider.enabled());
         assertEquals("cas", provider.descriptor().providerCode());
         assertEquals("cas", provider.descriptor().supportedTypes().getFirst());
+    }
+
+    @Test
+    void loginEntryIsPresentedAsLoginTab() {
+        SettingsService service = service();
+        TaruSsoLoginProvider provider = new TaruSsoLoginProvider(service, studentInfo());
+        // 宿主 SPI 2.32.0：入口与「账号密码登录 / Passkey 登录」并列成 Tab
+        assertEquals(PluginExternalLoginPresentation.TAB, provider.presentation());
+        assertEquals("cas", provider.descriptor().providerCode());
+        // 内置 Tab 基线是账号密码 100 / Passkey 200，0 让本插件排在首位
+        assertEquals(0, provider.descriptor().sort());
     }
 
     @Test
