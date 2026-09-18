@@ -3,7 +3,6 @@ package online.yudream.base.plugin.activityproof.interfaces.request;
 public record ActivityBindingRequest(
         String type,
         String serverId,
-        String subServer,
         Integer minOnlineMinutes,
         Boolean includeAfk,
         Boolean autoJoin,

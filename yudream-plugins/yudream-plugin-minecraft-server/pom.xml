@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>yudream-plugin-minecraft-server</artifactId>
-    <version>1.6.0</version>
+    <version>1.5.7</version>
 
     <build>
         <resources>
@@ -63,6 +63,11 @@
         <dependency>
             <groupId>online.yudream.base</groupId>
             <artifactId>yudream-plugin-spi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>online.yudream.plugins</groupId>
+            <artifactId>yudream-plugin-ymcl-adapter</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>online.yudream.plugins</groupId>
