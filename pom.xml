@@ -59,6 +59,8 @@
         <module>yudream-plugins/yudream-plugin-yggc</module>
         <module>yudream-plugins/yudream-plugin-invite</module>
         <module>yudream-plugins/yudream-plugin-mail</module>
+        <!-- 本 fork 独有插件（对照 fork/official-plugins-only 多出来的部分） -->
+        <module>yudream-plugins/yudream-plugin-cas</module>
         </modules>
 
     <dependencyManagement>
