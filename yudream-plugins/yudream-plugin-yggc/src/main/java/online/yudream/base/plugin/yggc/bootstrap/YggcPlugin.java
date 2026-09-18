@@ -8,7 +8,6 @@ import online.yudream.base.plugin.spi.annotation.PluginRoute;
 import online.yudream.base.plugin.spi.annotation.PluginSpec;
 import online.yudream.base.plugin.spi.core.PluginContext;
 import online.yudream.base.plugin.spi.core.YuDreamPlugin;
-import online.yudream.base.plugin.yggc.api.PluginYggcAuthService;
 import online.yudream.base.plugin.yggc.application.service.YggcAppService;
 import online.yudream.base.plugin.yggc.application.service.YggcOAuthService;
 import online.yudream.base.plugin.yggc.application.service.YggcProfileSyncService;
@@ -193,7 +192,5 @@ public class YggcPlugin implements YuDreamPlugin {
         context.registerHttpController(new YggcAdminController(http));
         context.registerHttpController(new YggcUserController(http));
         context.registerHttpController(new YggcUnionController(http));
-        // 免密签发端口：供以 authlib-injector 插件 code 部署的兼容补丁插件按 code 取用。
-        context.exposeService(PluginYggcAuthService.class, appService);
     }
 }

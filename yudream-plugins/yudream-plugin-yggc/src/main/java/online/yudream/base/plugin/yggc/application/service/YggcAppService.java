@@ -5,7 +5,6 @@ import online.yudream.base.plugin.spi.system.user.PluginUserProfile;
 import online.yudream.base.plugin.skin.api.PluginSkinProfile;
 import online.yudream.base.plugin.skin.api.PluginSkinService;
 import online.yudream.base.plugin.skin.api.PluginSkinTexture;
-import online.yudream.base.plugin.yggc.api.PluginYggcAuthService;
 import online.yudream.base.plugin.yggc.domain.aggregate.AuthSession;
 import online.yudream.base.plugin.yggc.domain.aggregate.ServerJoin;
 import online.yudream.base.plugin.yggc.domain.aggregate.YggcSettings;
@@ -39,7 +38,7 @@ import java.util.logging.Logger;
  * 访问令牌与会话服务器同时被 YggcOAuthService 颁发的 OAuth 访问令牌识别。
  * 各项限制（令牌有效期 / 数量上限 / 频率限制 / 批量查询上限 / 皮肤白名单）由后台配置驱动。
  */
-public class YggcAppService implements PluginYggcAuthService {
+public class YggcAppService {
 
     private static final String SKIN_PLUGIN_CODE = "yudream-skin";
     private static final long JOIN_TTL = Duration.ofMinutes(5).toMillis();
@@ -233,24 +232,6 @@ public class YggcAppService implements PluginYggcAuthService {
         return saved;
     }
 
-    @Override
-    public List<PluginYggcProfile> listProfiles(String userId) {
-        return profilesForUser(userId).stream()
-                .map(profile -> new PluginYggcProfile(profile.uuid(), profile.name()))
-                .toList();
-    }
-
-    @Override
-    public IssuedSession issueSession(String userId, String clientToken, String requestedProfileName) {
-        List<PluginSkinProfile> profiles = profilesForUser(userId);
-        if (profiles.isEmpty()) {
-            throw new IllegalArgumentException("该账号没有可用角色（请先在皮肤站创建角色）");
-        }
-        PluginSkinProfile selected = selectProfile(profiles, requestedProfileName);
-        AuthSession saved = issueSession(userId, clientToken, selected);
-        return new IssuedSession(saved.userId(), saved.username(), saved.selectedProfileId(),
-                saved.accessToken(), saved.clientToken());
-    }
 
     public void join(JoinRequest request) {
         AuthSession session = validSession(request.accessToken(), null);
